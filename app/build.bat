@@ -7,12 +7,12 @@ echo ====================================
 echo.
 
 :: ================= НАСТРОЙКИ ПУТЕЙ =================
-:: Теперь батник лежит внутри app, поэтому пути указываем напрямую
 set "APP=PDF Converter.py"
 set "NAME=PDF Converter"
 set "ICON=icon.ico"
 set "PNG=icon.png"
 set "GS=gswin64c.exe"
+set "GS_DLL=gsdll64.dll"
 
 :: ================= ПРОВЕРКА ФАЙЛОВ ПЕРЕД СБОРКОЙ =================
 echo Checking required files...
@@ -31,7 +31,11 @@ if not exist "%PNG%" (
 )
 if not exist "%GS%" (
     echo ❌ ERROR: Ghostscript "%GS%" not found!
-    echo          Please ensure gswin64c.exe is in this folder.
+    goto :failed
+)
+if not exist "%GS_DLL%" (
+    echo ❌ ERROR: Ghostscript DLL "%GS_DLL%" not found!
+    echo          Please copy gsdll64.dll from Ghostscript bin folder into "app".
     goto :failed
 )
 
@@ -46,11 +50,10 @@ del /q "%NAME%.spec" 2>nul
 
 echo.
 echo Building standalone EXE with PyInstaller...
-echo Please wait, this might take a minute...
+echo Please wait...
 echo.
 
 :: ================= СБОРКА PYINSTALLER =================
-:: Так как файлы лежат в той же папке, мы просто упаковываем их через ";."
 py -m PyInstaller ^
   --onefile ^
   --windowed ^
@@ -60,6 +63,7 @@ py -m PyInstaller ^
   --add-data "%ICON%;." ^
   --add-data "%PNG%;." ^
   --add-data "%GS%;." ^
+  --add-data "%GS_DLL%;." ^
   --name "%NAME%" ^
   "%APP%"
 
@@ -71,10 +75,8 @@ echo ====================================
 if exist "dist\%NAME%.exe" (
     echo ✅ EXE created successfully:
     echo     app\dist\%NAME%.exe
-    echo.
-    echo You can now take this EXE and run it on any PC!
 ) else (
-    echo ❌ Build failed! Check PyInstaller logs above.
+    echo ❌ Build failed!
 )
 
 goto :end
