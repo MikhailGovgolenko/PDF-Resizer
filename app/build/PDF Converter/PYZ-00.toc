@@ -1,4 +1,5 @@
-('C:\\PDF Converter\\app\\build\\PDF Converter\\PYZ-00.pyz',
+('C:\\Users\\govgo\\iCloudDrive\\PDF-Converter\\app\\build\\PDF '
+ 'Converter\\PYZ-00.pyz',
  [('PIL',
    'C:\\Users\\govgo\\AppData\\Roaming\\Python\\Python314\\site-packages\\PIL\\__init__.py',
    'PYMODULE'),

@@ -18,8 +18,6 @@ def resource_path(relative_path):
         base_path = sys._MEIPASS
     except Exception:
         # Если запускается обычный .py скрипт.
-        # os.path.dirname(os.path.abspath(__file__)) гарантирует, 
-        # что мы отталкиваемся от папки, где лежит сам этот скрипт.
         base_path = os.path.dirname(os.path.abspath(__file__))
 
     full_path = os.path.join(base_path, relative_path)
@@ -48,7 +46,7 @@ def get_gs_path():
 
 
 # =========================
-# ИКОНКИ (улучшенная версия)
+# ИКОНКИ
 # =========================
 def setup_window_icon(root):
     try:
@@ -81,7 +79,7 @@ def setup_window_icon(root):
 
 
 # =========================
-# Остальной код (LOG, ANALYZE, RESIZE и т.д.)
+# РАБОТА С PDF И ЛОГИКА
 # =========================
 def log_block(box, title, content, status):
     box.configure(state="normal")
@@ -128,22 +126,36 @@ def resize_pdf_gs(input_path, output_path, w_ratio, h_ratio, box):
     base_width = 1440
     base_height = int(base_width * h_ratio / w_ratio)
 
-    # Преобразуем пути к абсолютным и нормализуем слэши под Windows
     input_path = os.path.abspath(input_path)
     output_path = os.path.abspath(output_path)
 
+    # Инструкция на языке PostScript для принудительного изменения геометрии
+    # и игнорирования оригинальных пропорций страниц
+    ps_force_geometry = (
+        f'<< /PageSize [{base_width} {base_height}] '
+        f'/Policies << /PageSize 3 >> '
+        f'>> setpagedevice'
+    )
+
+    # Измененный и строго выверенный порядок аргументов для Ghostscript
     cmd = [
-        gs_path, "-sDEVICE=pdfwrite", "-dNOPAUSE", "-dBATCH", "-dFIXEDMEDIA",
-        "-dAutoRotatePages=/None",
-        f"-dDEVICEWIDTHPOINTS={base_width}",
-        f"-dDEVICEHEIGHTPOINTS={base_height}",
-        "-dPDFFitPage",
-        f"-sOutputFile={output_path}",
-        input_path
-    ]
+            gs_path, 
+            "-sDEVICE=pdfwrite", 
+            "-dNOPAUSE", 
+            "-dBATCH", 
+            "-dFIXEDMEDIA",
+            "-dAutoRotatePages=/None",      # Сохраняем оригинальную ориентацию
+            f"-dDEVICEWIDTHPOINTS={base_width}",
+            f"-dDEVICEHEIGHTPOINTS={base_height}",
+            "-dPDFFitPage",                 # Включаем вписывание контента
+            "-dUseCropBox=true",            # КРИТИЧЕСКИ ВАЖНО: масштабируем по видимой рамке, а не скрытой
+            "-dUseTrimBox=true",
+            f"-sOutputFile={output_path}", 
+            "-c", ps_force_geometry,        # Накладываем финальный жесткий размер
+            "-f", input_path
+        ]
 
     try:
-        # shell=True и правильная кодировка помогают Windows передать кириллицу в Ghostscript
         result = subprocess.run(
             cmd, 
             check=True, 
@@ -155,13 +167,13 @@ def resize_pdf_gs(input_path, output_path, w_ratio, h_ratio, box):
         )
         status = "✔ done"
     except subprocess.CalledProcessError as e:
-        # Если упало, выводим реальную ошибку из логов самого Ghostscript
         gs_error = e.stderr if e.stderr else e.output
         status = f"❌ Ghostscript error:\n{gs_error}"
     except Exception as e:
         status = f"❌ error: {e}"
 
     log_block(box, f"📐 RESIZE: {file_name}", "Running Ghostscript...", status)
+
 
 # =========================
 # GUI
