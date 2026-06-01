@@ -5,7 +5,7 @@ a = Analysis(
     ['PDF Converter.py'],
     pathex=[],
     binaries=[],
-    datas=[('icon.ico', '.'), ('icon.png', '.'), ('gswin64c.exe', '.'), ('gsdll64.dll', '.')],
+    datas=[('icon.ico', '.'), ('icon.png', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
