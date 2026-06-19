@@ -1,0 +1,18 @@
+# === Временные файлы Python и PyInstaller ===
+**/__pycache__/
+*.pyc
+app-python/build/
+app-python/dist/
+app-python/*.spec
+app-python/warn-*.txt
+app-python/xref-*.html
+
+# === Мусор фронтенда Tauri ===
+**/node_modules/
+**/dist/
+**/.DS_Store
+.env*
+
+# === Мусор бэкенда Rust (Tauri) ===
+**/src-tauri/target/
+**/src-tauri/.cargo/
