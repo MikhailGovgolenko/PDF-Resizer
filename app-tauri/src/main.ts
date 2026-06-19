@@ -160,9 +160,11 @@ window.addEventListener("DOMContentLoaded", () => {
       --winui-text-secondary: rgba(0, 0, 0, 0.61);
       --winui-text-disabled: rgba(0, 0, 0, 0.36);
       --winui-btn-clear: rgba(55, 55, 55, 0.06);
+      --winui-btn-clear-hover: rgba(55, 55, 55, 0.06);
+      --winui-btn-clear-active: rgba(55, 55, 55, 0.08);
       --winui-btn-standard: rgba(255, 255, 255, 0.7);
       --winui-btn-hover: rgba(249, 249, 249, 0.5);
-      --winui-btn-active: rgba(245, 245, 245, 0.0);
+      --winui-btn-active: rgba(245, 245, 245, 0.5);
       --winui-btn-border: rgba(0, 0, 0, 0.06);
       --winui-btn-border-bottom: rgba(0, 0, 0, 0.16);
       --winui-btn-shadow: 0 1px 2px rgba(0, 0, 0, 0.0);
@@ -194,7 +196,7 @@ window.addEventListener("DOMContentLoaded", () => {
         --winui-accent-active: color-mix(in oklab, var(--winui-accent-system) 93%, #ffffff);
         
         /* Текст на акцентных элементах всегда остается белым */
-        --winui-accent-text: #ffffff;
+        --winui-accent-text: rgba(0, 0, 0, 0.79);
         
         --winui-card: rgba(255, 255, 255, 0.05);
         --winui-card-border: rgba(255, 255, 255, 0.03);
@@ -203,6 +205,8 @@ window.addEventListener("DOMContentLoaded", () => {
         --winui-text-secondary: rgba(255, 255, 255, 0.78);
         --winui-text-disabled: rgba(255, 255, 255, 0.44);
         --winui-btn-clear: rgba(255, 255, 255, 0.06);
+        --winui-btn-clear-hover: rgba(255, 255, 255, 0.06);
+        --winui-btn-clear-active: rgba(255, 255, 255, 0.04);
         --winui-btn-standard: rgba(255, 255, 255, 0.05);
         --winui-btn-hover: rgba(255, 255, 255, 0.09);
         --winui-btn-active: rgba(255, 255, 255, 0.03);
@@ -338,23 +342,33 @@ window.addEventListener("DOMContentLoaded", () => {
     .btn-clear {
       height: 32px;
       background: transparent;
-      border: transparent !important;
+      border: 1px solid transparent !important; /* Добавляем прозрачную границу для стабильности */
       color: var(--winui-text-main);
-      font-size: 12px;
+      font-size: 13px; /* Немного увеличим для читаемости */
       cursor: pointer;
-      padding: 0 16px;
-      border-radius: 4px;
-      font-weight: 450;
+      padding: 0 12px;
+      border-radius: 4px; /* Скругления во Fluent 2 обычно чуть больше */
+      font-weight: 400;
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       gap: 6px;
-      transition: background-color var(--fluent-timing-fast), color var(--fluent-timing-fast);
+      transition: all var(--fluent-timing-fast) ease;
       box-shadow: none !important;
+      outline: none;
     }
+    
     .btn-clear:hover {
-      background: var(--winui-btn-clear);
-      box-shadow: none !important;
+      background: var(--winui-btn-clear-hover); /* Обычно это более светлый/темный оттенок серого */
+     
     }
+    
+    .btn-clear:active {
+      background: var(--winui-btn-clear-active); /* Цвет нажатия чуть темнее ховера */
+      transform: scale(0.98); /* Легкий эффект «нажатия» */
+      transition-duration: 0.05s;
+    }
+    
     
     .input-grid-row {
       display: grid;
