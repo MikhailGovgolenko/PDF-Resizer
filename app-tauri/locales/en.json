@@ -1,0 +1,50 @@
+{
+  "ui": {
+    "target_document": "Target Document",
+    "no_file_selected": "No file selected",
+    "browse": "Browse",
+    "preset_label": "Aspect ratio preset",
+    "width_label": "Width ratio",
+    "height_label": "Height ratio",
+    "analyze_btn": "Analyze",
+    "generate_btn": "Generate PDF",
+    "timeline_label": "Process Timeline",
+    "clear_history": "Clear history",
+    "ready_placeholder": "Ready to process documents..."
+  },
+  "presets": {
+    "a_series": "A-Series (A4, A3...)",
+    "widescreen": "Widescreen (16:9)",
+    "standard": "Standard (4:3)",
+    "custom": "Custom"
+  },
+  "logs": {
+    "action_required": "Action Required",
+    "select_file_first": "Please select a PDF file first.",
+    "file_loaded": "File Loaded",
+    "analysis_completed": "Analysis Completed",
+    "analysis_error": "Analysis Error",
+    "generation_success": "Generation Successful",
+    "generation_error": "Generation Error"
+  },
+  "errors": {
+    "EmptyPath": "File path cannot be empty.",
+    "PdfLoadFailed": "Failed to load or read the source PDF file. It might be corrupted.",
+    "InvalidDimensions": "Could not determine valid page dimensions (MediaBox is missing).",
+    "InvalidRatio": "Aspect ratio coefficients must be greater than zero.",
+    "IoError": "I/O error occurred while saving the file. Check write permissions.",
+    "PageStructureError": "Error reading the internal structure of document pages.",
+    "ModificationError": "Failed to modify the PDF page structure.",
+    "UnknownError": "Unknown backend error"
+  },
+  "ratios": {
+    "a-series": "A-Series",
+    "16-9": "Widescreen 16:9",
+    "4-3": "Standard 4:3",
+    "custom": "{{w}}:{{h}}"
+  },
+  "file": "File",
+  "ratios_found": "Detected aspect ratios across pages:",
+  "pages_count": "{{count}} pages",
+  "resize_success": "Document successfully scaled to target dimensions: {{w}} × {{h}} pt."
+}

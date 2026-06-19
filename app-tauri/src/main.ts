@@ -1,6 +1,76 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 
+// Импортируем готовые JSON-файлы из вашей папки locales
+import localeRu from "../locales/ru.json";
+import localeEn from "../locales/en.json";
+
+// Описание интерфейсов данных из бэкенда Rust
+interface PdfAnalysis {
+  file_name: string;
+  ratios: Record<string, number>;
+}
+
+interface PdfResizeResult {
+  target_w: number;
+  target_h: number;
+}
+
+// ==========================================
+// 0. МЕНЕДЖЕР АВТОЛОКАЛИЗАЦИИ СИСТЕМЫ
+// ==========================================
+const locales: Record<string, any> = {
+  ru: localeRu,
+  en: localeEn
+};
+
+const currentLang = navigator.language.startsWith("ru") ? "ru" : "en";
+const currentLocale = locales[currentLang];
+
+function t(path: string, fallback: string = ""): string {
+  return path.split('.').reduce((obj, key) => obj?.[key], currentLocale) || fallback;
+}
+
+// Вспомогательная функция для локализации классов соотношений сторон
+function translateRatio(ratioKey: string): string {
+  // Приводим нижние подчеркивания к дефисам для унификации (a_series -> a-series)
+  const normalizedKey = ratioKey.replace(/_/g, "-");
+
+  if (normalizedKey.startsWith("custom:")) {
+    const [_, w, h] = normalizedKey.split(":");
+    return t("ratios.custom", `${w}:${h} (custom)`).replace("{{w}}", w).replace("{{h}}", h);
+  }
+  
+  return t(`ratios.${normalizedKey}`, ratioKey);
+}
+
+// Функция для подстановки переменных в строки (например, {{w}}, {{h}})
+function formatString(template: string, args: Record<string, string | number>): string {
+  let result = template;
+  for (const [key, value] of Object.entries(args)) {
+    result = result.replace(new RegExp(`{{${key}}}`, "g"), String(value));
+  }
+  return result;
+}
+
+// Функция плюрализации (склонения) слова "страница"
+function getPagesString(count: number): string {
+  if (currentLang === "en") {
+    return formatString(t("pages_count", "{{count}} pages"), { count });
+  }
+
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  
+  if (mod10 === 1 && mod100 !== 11) {
+    return formatString(t("pages_count_one", "{{count}} страница"), { count });
+  }
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) {
+    return formatString(t("pages_count_few", "{{count}} страницы"), { count });
+  }
+  return formatString(t("pages_count_many", "{{count}} страниц"), { count });
+}
+
 // ==========================================
 // 1. GLOBAL APPLICATION STATE (Reactive)
 // ==========================================
@@ -26,6 +96,23 @@ const AppState = {
   get activePreset() { return this._activePreset; },
   set activePreset(val: string) { this._activePreset = val; this.trigger("activePreset", val); }
 };
+
+// ==========================================
+// ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ ПАРСИНГА ОШИБОК ИЗ RUST
+// ==========================================
+function parseAppError(err: unknown): string {
+  if (typeof err === "string") {
+    try {
+      const parsed = JSON.parse(err);
+      if (parsed && parsed.type) {
+        return t(`errors.${parsed.type}`, `Backend Error: ${parsed.type}`);
+      }
+    } catch {
+      return err;
+    }
+  }
+  return String(err);
+}
 
 // ==========================================
 // 2. WINUI-LIKE REUSABLE COMPONENTS
@@ -54,11 +141,11 @@ function WinLogTimeline() {
 
   const header = document.createElement("div");
   header.className = "log-header";
-  header.innerHTML = `<label>Process Timeline</label>`;
+  header.innerHTML = `<label>${t('ui.timeline_label')}</label>`;
 
   const clearBtn = document.createElement("button");
   clearBtn.className = "btn-clear";
-  clearBtn.innerHTML = `<i class="f-icon" style="font-size: 12px;">&#xE74D;</i>Clear history`;
+  clearBtn.innerHTML = `<i class="f-icon" style="font-size: 12px;">&#xE74D;</i>${t('ui.clear_history')}`;
 
   const viewport = document.createElement("div");
   viewport.className = "log-viewport";
@@ -68,7 +155,7 @@ function WinLogTimeline() {
   container.appendChild(viewport);
 
   const setInitialState = () => {
-    viewport.innerHTML = `<div class="log-placeholder">Ready to process documents...</div>`;
+    viewport.innerHTML = `<div class="log-placeholder">${t('ui.ready_placeholder')}</div>`;
   };
   setInitialState();
 
@@ -78,16 +165,26 @@ function WinLogTimeline() {
     if (viewport.querySelector(".log-placeholder")) {
       viewport.innerHTML = "";
     }
+    
+    const colors = {
+      info: "var(--winui-accent)",
+      success: "#107c10", 
+      failed: "#e81123"   
+    };
+
     const entry = document.createElement("div");
     entry.className = "log-entry";
-    if (type === "success") entry.style.borderLeft = "4px solid var(--winui-accent)";
-    if (type === "failed") entry.style.borderLeft = "4px solid #e81123";
+    entry.style.borderLeft = `4px solid ${colors[type]}`;
 
     entry.innerHTML = `
-      <div style="font-weight: 400; font-size: 11px; color: var(--winui-text-secondary);">${new Date().toLocaleTimeString()}</div>
-      <div style="font-weight: 400; color: var(--winui-text-main); margin-top: 2px;">${title}</div>
-      <div style="color: var(--winui-text-secondary); margin-top: 1px; white-space: pre-line; word-break: break-all;">${content}</div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <div style="width: 8px; height: 8px; border-radius: 50%; background-color: ${colors[type]};"></div>
+        <div style="font-weight: 400; font-size: 11px; color: var(--winui-text-secondary);">${new Date().toLocaleTimeString()}</div>
+      </div>
+      <div style="font-weight: 600; color: var(--winui-text-main); margin-top: 4px;">${title}</div>
+      <div style="color: var(--winui-text-secondary); margin-top: 2px; white-space: pre-line; word-break: break-all;">${content}</div>
     `;
+    
     viewport.appendChild(entry);
     viewport.scrollTop = viewport.scrollHeight;
   };
@@ -142,11 +239,8 @@ window.addEventListener("DOMContentLoaded", () => {
   const styleSheet = document.createElement("style");
   styleSheet.innerText = `
     :root {
-      --winui-accent-system: #0078d4; /* Дефолтный фолбэк */
+      --winui-accent-system: #0078d4; 
       
-      /* ——————————————————————————————————————————
-         СВЕТЛАЯ ТЕМA (Базовый цвет + благородное затемнение)
-         —————————————————————————————————————————— */
       --winui-accent: var(--winui-accent-system);
       --winui-accent-hover: color-mix(in oklab, var(--winui-accent-system) 88%, #000000);
       --winui-accent-active: color-mix(in oklab, var(--winui-accent-system) 78%, #000000);
@@ -182,20 +276,9 @@ window.addEventListener("DOMContentLoaded", () => {
 
     @media (prefers-color-scheme: dark) {
       :root {
-        /* ——————————————————————————————————————————
-           ТЕМНАЯ ТЕМА (Точная адаптация под темный фон)
-           —————————————————————————————————————————— */
-        
-        /* Rest: Подмешиваем 18% белого в oklab для сочности и читаемости на темном */
         --winui-accent: color-mix(in oklab, var(--winui-accent-system) 82%, #ffffff);
-        
-        /* Hover: Кнопка "загорается" сильнее при наведении (+35% белого) */
         --winui-accent-hover: color-mix(in oklab, var(--winui-accent-system) 65%, #ffffff);
-        
-        /* Active: При клике цвет проседает обратно к базовому (+7% белого) */
         --winui-accent-active: color-mix(in oklab, var(--winui-accent-system) 93%, #ffffff);
-        
-        /* Текст на акцентных элементах всегда остается белым */
         --winui-accent-text: rgba(0, 0, 0, 0.79);
         
         --winui-card: rgba(255, 255, 255, 0.05);
@@ -342,12 +425,12 @@ window.addEventListener("DOMContentLoaded", () => {
     .btn-clear {
       height: 32px;
       background: transparent;
-      border: 1px solid transparent !important; /* Добавляем прозрачную границу для стабильности */
+      border: 1px solid transparent !important;
       color: var(--winui-text-main);
-      font-size: 13px; /* Немного увеличим для читаемости */
+      font-size: 13px;
       cursor: pointer;
       padding: 0 12px;
-      border-radius: 4px; /* Скругления во Fluent 2 обычно чуть больше */
+      border-radius: 4px;
       font-weight: 400;
       display: inline-flex;
       align-items: center;
@@ -359,16 +442,12 @@ window.addEventListener("DOMContentLoaded", () => {
     }
     
     .btn-clear:hover {
-      background: var(--winui-btn-clear-hover); /* Обычно это более светлый/темный оттенок серого */
-     
+      background: var(--winui-btn-clear-hover);
     }
     
     .btn-clear:active {
-      background: var(--winui-btn-clear-active); /* Цвет нажатия чуть темнее ховера */
-      transform: scale(0.98); /* Легкий эффект «нажатия» */
-      transition-duration: 0.05s;
+      background: var(--winui-btn-clear-active);
     }
-    
     
     .input-grid-row {
       display: grid;
@@ -621,7 +700,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
   const textMetaBlock = document.createElement("div");
   textMetaBlock.style.minWidth = "0";
-  textMetaBlock.innerHTML = `<div style="font-size: 14px; font-weight: 400; color: var(--winui-text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Target Document</div>`;
+  textMetaBlock.innerHTML = `<div style="font-size: 14px; font-weight: 400; color: var(--winui-text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${t('ui.target_document')}</div>`;
 
   const fileStatus = document.createElement("div");
   fileStatus.style.cssText = "font-size: 12px; color: var(--winui-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;";
@@ -631,7 +710,7 @@ window.addEventListener("DOMContentLoaded", () => {
   fileCard.appendChild(fileInfoWrapper);
 
   const browseBtn = WinButton({
-    text: "Browse",
+    text: t('ui.browse'),
     variant: "standard",
     onClick: async () => {
       const selected = await open({
@@ -640,7 +719,7 @@ window.addEventListener("DOMContentLoaded", () => {
       });
       if (selected && typeof selected === "string") {
         AppState.inputPath = selected;
-        timeline.addLog("File Loaded", selected, "info");
+        timeline.addLog(t('logs.file_loaded'), selected, "info");
       }
     }
   });
@@ -651,7 +730,7 @@ window.addEventListener("DOMContentLoaded", () => {
       fileStatus.textContent = path.split(/[\\/]/).pop() || path;
       fileStatus.style.color = "var(--winui-text-main)";
     } else {
-      fileStatus.textContent = "No file selected";
+      fileStatus.textContent = t('ui.no_file_selected');
       fileStatus.style.color = "var(--winui-text-secondary)";
     }
   });
@@ -667,22 +746,22 @@ window.addEventListener("DOMContentLoaded", () => {
 
   const comboGroup = document.createElement("div");
   comboGroup.className = "input-group";
-  comboGroup.innerHTML = `<label>Aspect ratio preset</label>`;
+  comboGroup.innerHTML = `<label>${t('ui.preset_label')}</label>`;
 
   const comboContainer = document.createElement("div");
   comboContainer.className = "win-combobox-container";
 
   const comboBtn = document.createElement("div");
   comboBtn.className = "win-combobox-button";
-  comboBtn.textContent = "A-Series (A4, A3...)";
+  comboBtn.textContent = t('presets.a_series');
 
   const comboFlyout = document.createElement("div");
   comboFlyout.className = "win-combobox-flyout";
   comboFlyout.innerHTML = `
-    <div class="win-combobox-item selected" data-value="a-series">A-Series (A4, A3...)</div>
-    <div class="win-combobox-item" data-value="16-9">Widescreen (16:9)</div>
-    <div class="win-combobox-item" data-value="4-3">Standard (4:3)</div>
-    <div class="win-combobox-item" data-value="custom">Custom (Manual)</div>
+    <div class="win-combobox-item selected" data-value="a-series">${t('presets.a_series')}</div>
+    <div class="win-combobox-item" data-value="16-9">${t('presets.widescreen')}</div>
+    <div class="win-combobox-item" data-value="4-3">${t('presets.standard')}</div>
+    <div class="win-combobox-item" data-value="custom">${t('presets.custom')}</div>
   `;
 
   comboContainer.appendChild(comboBtn);
@@ -691,7 +770,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
   const wGroup = document.createElement("div");
   wGroup.className = "input-group";
-  wGroup.innerHTML = `<label>Width ratio</label>`;
+  wGroup.innerHTML = `<label>${t('ui.width_label')}</label>`;
   const wEntry = WinNumericInput({ placeholder: "1", defaultValue: "1" });
   wGroup.appendChild(wEntry);
 
@@ -701,7 +780,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
   const hGroup = document.createElement("div");
   hGroup.className = "input-group";
-  hGroup.innerHTML = `<label>Height ratio</label>`;
+  hGroup.innerHTML = `<label>${t('ui.height_label')}</label>`;
   const hEntry = WinNumericInput({ placeholder: "1.414", defaultValue: "1.414" });
   hGroup.appendChild(hEntry);
 
@@ -763,25 +842,36 @@ window.addEventListener("DOMContentLoaded", () => {
   actionRow.style.cssText = "display: flex; gap: 8px;";
 
   const analyzeBtn = WinButton({
-    text: "Analyze",
+    text: t('ui.analyze_btn'),
     variant: "standard",
     onClick: async () => {
-      if (!AppState.inputPath) return timeline.addLog("Action Required", "Please select a PDF file first.", "failed");
+      if (!AppState.inputPath) return timeline.addLog(t('logs.action_required'), t('logs.select_file_first'), "failed");
       try {
-        const res = await invoke("analyze_pdf", { inputPath: AppState.inputPath });
-        timeline.addLog("Analysis Completed", res as string, "info");
+        // Бэкенд теперь возвращает объект { file_name: string, ratios: Record<string, number> }
+        const res = await invoke<PdfAnalysis>("analyze_pdf", { inputPath: AppState.inputPath });
+        
+        // Динамическая сборка текстового представления лога на основе JSON локализации
+        let logContent = `${t('file')}: ${res.file_name}\n${t('ratios_found')}\n`;
+        for (const [ratioKey, count] of Object.entries(res.ratios)) {
+          const ratioTranslated = translateRatio(ratioKey);
+          const pagesFormatted = getPagesString(count);
+          logContent += `  • ${ratioTranslated}: ${pagesFormatted}\n`;
+        }
+
+        timeline.addLog(t('logs.analysis_completed'), logContent.trim(), "info");
       } catch (err) {
-        timeline.addLog("Analysis Error", String(err), "failed");
+        const errorMsg = parseAppError(err);
+        timeline.addLog(t('logs.analysis_error'), errorMsg, "failed");
       }
     }
   });
   analyzeBtn.style.flex = "1";
 
   const generateBtn = WinButton({
-    text: "Generate PDF",
+    text: t('ui.generate_btn'),
     variant: "accent",
     onClick: async () => {
-      if (!AppState.inputPath) return timeline.addLog("Action Required", "Please select a PDF file first.", "failed");
+      if (!AppState.inputPath) return timeline.addLog(t('logs.action_required'), t('logs.select_file_first'), "failed");
 
       const wr = parseFloat(wEntry.value) || 1;
       const hr = parseFloat(hEntry.value) || 1;
@@ -790,15 +880,23 @@ window.addEventListener("DOMContentLoaded", () => {
       if (!outputPath) return;
 
       try {
-        const res = await invoke("resize_pdf", {
+        // Бэкенд теперь возвращает объект { target_w: number, target_h: number }
+        const res = await invoke<PdfResizeResult>("resize_pdf", {
           inputPath: AppState.inputPath,
           outputPath,
           wRatio: wr,
           hRatio: hr,
         });
-        timeline.addLog("Generation Successful", res as string, "success");
+
+        // Динамическая сборка текста успешного ресайза с округлением до целых чисел pt
+        const targetW = Math.round(res.target_w);
+        const targetH = Math.round(res.target_h);
+        const successContent = formatString(t("resize_success"), { w: targetW, h: targetH });
+
+        timeline.addLog(t('logs.generation_success'), successContent, "success");
       } catch (err) {
-        timeline.addLog("Generation Error", String(err), "failed");
+        const errorMsg = parseAppError(err);
+        timeline.addLog(t('logs.generation_error'), errorMsg, "failed");
       }
     }
   });
