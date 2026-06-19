@@ -111,6 +111,30 @@ window.addEventListener("DOMContentLoaded", () => {
   const appElement = document.querySelector("#app") || document.body;
   appElement.innerHTML = "";
 
+  // ------------------------------------------
+  // ДОБАВЛЕНО: Отслеживание темы для иконки окна
+  // ------------------------------------------
+  const initThemeIconListener = () => {
+    const themeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    
+    const updateIcon = async (isDark: boolean) => {
+      try {
+        await invoke("set_theme_icon", { isDark });
+      } catch (err) {
+        console.error("Не удалось синхронизировать иконку окна:", err);
+      }
+    };
+
+    // Проверяем тему один раз при холодном старте приложения
+    updateIcon(themeQuery.matches);
+
+    // Подписываемся на динамическое изменение темы в Windows (на лету)
+    themeQuery.addEventListener('change', (e) => updateIcon(e.matches));
+  };
+  
+  initThemeIconListener();
+  // ------------------------------------------
+
   // Отключаем дефолтное контекстное меню браузера (клик правой кнопкой мыши)
   document.addEventListener("contextmenu", (e) => {
     e.preventDefault();

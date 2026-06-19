@@ -232,6 +232,25 @@ fn resize_pdf(input_path: String, output_path: String, w_ratio: f64, h_ratio: f6
     ))
 }
 
+#[tauri::command]
+fn set_theme_icon(window: tauri::Window, is_dark: bool) -> Result<(), String> {
+    // Явно приводим типы к срезу &[u8], чтобы сгладить разницу в размерах файлов
+    let icon_bytes: &[u8] = if is_dark {
+        include_bytes!("../../assets/icon-dark.png") 
+    } else {
+        include_bytes!("../../assets/icon-light.png")
+    };
+
+    // Теперь, когда фича "image-png" включена, этот метод станет доступен
+    let icon = tauri::image::Image::from_bytes(icon_bytes)
+        .map_err(|e| format!("Failed to parse icon bytes: {}", e))?;
+
+    window.set_icon(icon)
+        .map_err(|e| format!("Failed to set window icon: {}", e))?;
+
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -258,7 +277,7 @@ pub fn run() {
             }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![analyze_pdf, resize_pdf])
+        .invoke_handler(tauri::generate_handler![analyze_pdf, resize_pdf, set_theme_icon])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
