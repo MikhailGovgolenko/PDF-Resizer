@@ -1,6 +1,7 @@
-use lopdf::{Document, Object, Stream, Dictionary};
+use lopdf::{Dictionary, Document, Object, Stream};
 use std::collections::HashMap;
 use std::path::Path;
+use tauri::Manager;
 
 fn get_ratio_class(w: f32, h: f32) -> String {
     if h == 0.0 { return "Invalid".to_string(); }
@@ -232,16 +233,15 @@ fn resize_pdf(input_path: String, output_path: String, w_ratio: f64, h_ratio: f6
     ))
 }
 
+// 3. SET THEME ICON COMMAND
 #[tauri::command]
 fn set_theme_icon(window: tauri::Window, is_dark: bool) -> Result<(), String> {
-    // Явно приводим типы к срезу &[u8], чтобы сгладить разницу в размерах файлов
     let icon_bytes: &[u8] = if is_dark {
         include_bytes!("../../assets/icon-dark.png") 
     } else {
         include_bytes!("../../assets/icon-light.png")
     };
 
-    // Теперь, когда фича "image-png" включена, этот метод станет доступен
     let icon = tauri::image::Image::from_bytes(icon_bytes)
         .map_err(|e| format!("Failed to parse icon bytes: {}", e))?;
 
@@ -251,12 +251,36 @@ fn set_theme_icon(window: tauri::Window, is_dark: bool) -> Result<(), String> {
     Ok(())
 }
 
+// 4. GET SYSTEM ACCENT COLOR COMMAND
+#[tauri::command]
+fn get_accent_color() -> Result<String, String> {
+    #[cfg(target_os = "windows")]
+    {
+        use winreg::enums::HKEY_CURRENT_USER;
+        use winreg::RegKey;
+
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+        if let Ok(dwm_key) = hkcu.open_subkey("Software\\Microsoft\\Windows\\DWM") {
+            // Указываем u32 для значения, а для типа строки разрешаем компилятору сделать вывод самому
+            if let Ok(colorization) = dwm_key.get_value::<u32, _>("ColorizationColor") {
+                // Цвет в реестре Windows хранится в формате 0xAARRGGBB
+                let r = ((colorization >> 16) & 0xFF) as u8;
+                let g = ((colorization >> 8) & 0xFF) as u8;
+                let b = (colorization & 0xFF) as u8;
+                return Ok(format!("#{:02X}{:02X}{:02X}", r, g, b));
+            }
+        }
+    }
+    
+    // Дефолтный синий цвет для остальных платформ или на случай сбоя чтения реестра
+    Ok("#0078D4".to_string())
+}
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
-            if let Some(window) = tauri::Manager::get_webview_window(app, "main") {
+            if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_min_size(Some(tauri::Size::Logical(tauri::LogicalSize {
                     width: 550.0,
                     height: 670.0,
@@ -277,7 +301,12 @@ pub fn run() {
             }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![analyze_pdf, resize_pdf, set_theme_icon])
+        .invoke_handler(tauri::generate_handler![
+            analyze_pdf, 
+            resize_pdf, 
+            set_theme_icon, 
+            get_accent_color // Передаём новую команду фронтенду
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
