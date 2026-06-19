@@ -1,7 +1,7 @@
 
 # PDF Converter
 
-<img src="app/icon.png" width="64" height="64" alt="PDF Converter Icon" halign="middle">
+<img src="app-python/icon.png" width="64" height="64" alt="PDF Converter Icon" halign="middle">
 
 A portable utility to analyze page aspect ratios and resize PDF documents without quality loss.
 
