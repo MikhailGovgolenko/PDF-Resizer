@@ -7,46 +7,47 @@ const root = path.resolve(__dirname, "..");
 
 const SIZE = 180;
 const SCALE = 0.68;
+const TRANSPARENT = { r: 0, g: 0, b: 0, alpha: 0 };
 
 const icons = [
   {
     source: "assets/icon-light.png",
     appleOutput: "public/apple-touch-icon-light.png",
     faviconOutput: "public/favicon-light.png",
-    background: { r: 255, g: 255, b: 255, alpha: 1 },
     theme: "light",
   },
   {
     source: "assets/icon-dark.png",
     appleOutput: "public/apple-touch-icon-dark.png",
     faviconOutput: "public/favicon-dark.png",
-    background: { r: 0, g: 0, b: 0, alpha: 1 },
     theme: "dark",
   },
 ];
 
-for (const icon of icons) {
-  const source = path.join(root, icon.source);
-  const flattened = sharp(source).flatten({ background: icon.background });
+async function buildPaddedIcon(source, output, size = SIZE) {
+  const inner = Math.round(size * SCALE);
 
-  const resized = await flattened
-    .clone()
-    .resize(Math.round(SIZE * SCALE), Math.round(SIZE * SCALE), { fit: "inside" })
+  const resized = await sharp(source)
+    .resize(inner, inner, { fit: "inside" })
+    .png()
     .toBuffer();
 
   await sharp({
     create: {
-      width: SIZE,
-      height: SIZE,
+      width: size,
+      height: size,
       channels: 4,
-      background: icon.background,
+      background: TRANSPARENT,
     },
   })
     .composite([{ input: resized, gravity: "center" }])
     .png()
-    .toFile(path.join(root, icon.appleOutput));
+    .toFile(path.join(root, output));
+}
 
-  await flattened.clone().png().toFile(path.join(root, icon.faviconOutput));
-
-  console.log(`Wrote ${icon.appleOutput} and ${icon.faviconOutput} (${icon.theme} theme)`);
+for (const icon of icons) {
+  const source = path.join(root, icon.source);
+  await buildPaddedIcon(source, icon.appleOutput);
+  await sharp(source).png().toFile(path.join(root, icon.faviconOutput));
+  console.log(`Wrote ${icon.appleOutput} and ${icon.faviconOutput} (${icon.theme}, transparent)`);
 }

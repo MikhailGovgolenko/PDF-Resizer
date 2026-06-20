@@ -6,12 +6,33 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="PDF Converter" />
     <title>PDF Converter</title>
-    <link rel="apple-touch-icon" href="/apple-touch-icon-light.png" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon-light.png" media="(prefers-color-scheme: light)" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon-dark.png" media="(prefers-color-scheme: dark)" />
-    <link rel="icon" type="image/png" href="/favicon-light.png" />
-    <link rel="icon" type="image/png" href="/favicon-light.png" media="(prefers-color-scheme: light)" />
-    <link rel="icon" type="image/png" href="/favicon-dark.png" media="(prefers-color-scheme: dark)" />
+    <link
+      id="apple-touch-icon"
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href="apple-touch-icon-light.png"
+    />
+    <script>
+      (function () {
+        var link = document.getElementById("apple-touch-icon");
+        if (!link) return;
+
+        function setAppleTouchIcon(isDark) {
+          link.href = isDark
+            ? "apple-touch-icon-dark.png"
+            : "apple-touch-icon-light.png";
+        }
+
+        var themeQuery = window.matchMedia("(prefers-color-scheme: dark)");
+        setAppleTouchIcon(themeQuery.matches);
+        themeQuery.addEventListener("change", function (event) {
+          setAppleTouchIcon(event.matches);
+        });
+      })();
+    </script>
+    <link rel="icon" type="image/png" href="favicon-light.png" />
+    <link rel="icon" type="image/png" href="favicon-light.png" media="(prefers-color-scheme: light)" />
+    <link rel="icon" type="image/png" href="favicon-dark.png" media="(prefers-color-scheme: dark)" />
     <script type="module" src="/src/main.ts"></script>
   </head>
   <body>
