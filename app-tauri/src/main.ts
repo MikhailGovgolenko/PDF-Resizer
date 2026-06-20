@@ -76,6 +76,10 @@ function getPagesString(count: number): string {
 // ДИНАМИЧЕСКОЕ ОПРЕДЕЛЕНИЕ СРЕДЫ (TAURI vs WEB)
 // ==========================================
 const isTauri = !!(window as any).__TAURI_INTERNALS__;
+const isStandalone =
+  window.matchMedia("(display-mode: standalone)").matches ||
+  (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+const blockTextSelection = isTauri || isStandalone;
 
 // Хранилище для веб-файла (так как в браузере нет доступа к путям файловой системы)
 let webSelectedFile: File | null = null;
@@ -325,8 +329,8 @@ window.addEventListener("DOMContentLoaded", () => {
     }
 
     html, body { margin: 0; padding: 0; background-color: var(--winui-window-bg) !important; height: 100vh; overflow: hidden; }
-    * { box-sizing: border-box; font-family: var(--font-family); -webkit-font-smoothing: antialiased;${isTauri ? " user-select: none !important; -webkit-user-select: none !important;" : ""} }
-    ${isTauri ? `
+    * { box-sizing: border-box; font-family: var(--font-family); -webkit-font-smoothing: antialiased;${blockTextSelection ? " user-select: none !important; -webkit-user-select: none !important; -webkit-touch-callout: none;" : ""} }
+    ${blockTextSelection ? `
     .win-input {
       user-select: text !important;
       -webkit-user-select: text !important;
