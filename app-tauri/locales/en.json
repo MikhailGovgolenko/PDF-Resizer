@@ -14,8 +14,8 @@
   },
   "presets": {
     "a_series": "A-Series (A4, A3...)",
-    "widescreen": "Widescreen (16:9)",
-    "standard": "Standard (4:3)",
+    "two_three": "2 x 3",
+    "standard": "3 x 4",
     "custom": "Custom"
   },
   "logs": {
@@ -39,9 +39,9 @@
   },
   "ratios": {
     "a-series": "A-Series",
-    "16-9": "Widescreen 16:9",
-    "4-3": "Standard 4:3",
-    "custom": "{{w}}:{{h}}"
+    "2-3": "2 x 3",
+    "3-4": "3 x 4",
+    "custom": "{{w}} x {{h}}"
   },
   "file": "File",
   "ratios_found": "Detected aspect ratios across pages:",

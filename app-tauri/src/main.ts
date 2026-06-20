@@ -42,10 +42,17 @@ function t(path: string, fallback: string = ""): string {
 
 function translateRatio(ratioKey: string): string {
   const normalizedKey = ratioKey.replace(/_/g, "-");
-  if (normalizedKey.startsWith("custom:")) {
-    const [_, w, h] = normalizedKey.split(":");
-    return t("ratios.custom", `${w}:${h} (custom)`).replace("{{w}}", w).replace("{{h}}", h);
+
+  const customMatch = normalizedKey.match(/^custom:([0-9.]+):([0-9.]+)$/);
+  if (customMatch) {
+    return `${customMatch[1]} x ${customMatch[2]}`;
   }
+
+  const numericMatch = normalizedKey.match(/^([0-9.]+)-([0-9.]+)$/);
+  if (numericMatch) {
+    return `${numericMatch[1]} x ${numericMatch[2]}`;
+  }
+
   return t(`ratios.${normalizedKey}`, ratioKey);
 }
 
@@ -759,8 +766,8 @@ window.addEventListener("DOMContentLoaded", () => {
   comboFlyout.className = "win-combobox-flyout";
   comboFlyout.innerHTML = `
     <div class="win-combobox-item selected" data-value="a-series">${t('presets.a_series')}</div>
-    <div class="win-combobox-item" data-value="16-9">${t('presets.widescreen')}</div>
-    <div class="win-combobox-item" data-value="4-3">${t('presets.standard')}</div>
+    <div class="win-combobox-item" data-value="2-3">${t('presets.two_three')}</div>
+    <div class="win-combobox-item" data-value="3-4">${t('presets.standard')}</div>
     <div class="win-combobox-item" data-value="custom">${t('presets.custom')}</div>
   `;
 
@@ -827,10 +834,10 @@ window.addEventListener("DOMContentLoaded", () => {
   AppState.onChange("activePreset", (preset) => {
     if (preset === "a-series") {
       wEntry.value = "1"; hEntry.value = "1.414"; wEntry.disabled = true; hEntry.disabled = true;
-    } else if (preset === "16-9") {
-      wEntry.value = "16"; hEntry.value = "9"; wEntry.disabled = true; hEntry.disabled = true;
-    } else if (preset === "4-3") {
-      wEntry.value = "4"; hEntry.value = "3"; wEntry.disabled = true; hEntry.disabled = true;
+    } else if (preset === "2-3") {
+      wEntry.value = "2"; hEntry.value = "3"; wEntry.disabled = true; hEntry.disabled = true;
+    } else if (preset === "3-4") {
+      wEntry.value = "3"; hEntry.value = "4"; wEntry.disabled = true; hEntry.disabled = true;
     } else if (preset === "custom") {
       wEntry.value = ""; hEntry.value = ""; wEntry.disabled = false; hEntry.disabled = false;
       wEntry.focus();
@@ -854,7 +861,7 @@ window.addEventListener("DOMContentLoaded", () => {
           const res = await invoke<PdfAnalysis>("analyze_pdf", { inputPath: AppState.inputPath });
           let logContent = `${t('file')}: ${res.file_name}\n${t('ratios_found')}\n`;
           for (const [ratioKey, count] of Object.entries(res.ratios)) {
-            logContent += `  • ${translateRatio(ratioKey)}: ${getPagesString(count)}\n`;
+            logContent += `  • ${translateRatio(ratioKey)} : ${getPagesString(count)}\n`;
           }
           timeline.addLog(t('logs.analysis_completed'), logContent.trim(), "info");
         } catch (err) {
@@ -865,7 +872,7 @@ window.addEventListener("DOMContentLoaded", () => {
           const res = await analyzePdfWeb(webSelectedFile);
           let logContent = `${t('file')}: ${res.file_name}\n${t('ratios_found')}\n`;
           for (const [ratioKey, count] of Object.entries(res.ratios)) {
-            logContent += `  • ${translateRatio(ratioKey)}: ${getPagesString(count)}\n`;
+            logContent += `  • ${translateRatio(ratioKey)} : ${getPagesString(count)}\n`;
           }
           timeline.addLog(t('logs.analysis_completed'), logContent.trim(), "info");
         } catch (err) {
