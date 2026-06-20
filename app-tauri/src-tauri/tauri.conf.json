@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "pdf-converter-rust",
-  "version": "0.1.0",
-  "identifier": "com.govgo.pdf-converter-rust",
+  "productName": "PDF Converter",
+  "version": "1.3.0",
+  "identifier": "com.govgo.pdf-converter",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://127.0.0.1:4321",

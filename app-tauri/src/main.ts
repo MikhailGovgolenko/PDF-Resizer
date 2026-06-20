@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
+import { analyzePdfWeb, downloadPdfBlob, resizePdfWeb } from "./pdf-web";
 
 // Импортируем готовые JSON-файлы из вашей папки locales
 import localeRu from "../locales/ru.json";
@@ -116,17 +117,23 @@ const AppState = {
 };
 
 function parseAppError(err: unknown): string {
-  if (typeof err === "string") {
-    try {
-      const parsed = JSON.parse(err);
-      if (parsed && parsed.type) {
-        return t(`errors.${parsed.type}`, `Backend Error: ${parsed.type}`);
-      }
-    } catch {
-      return err;
+  const raw =
+    err instanceof Error
+      ? err.message
+      : typeof err === "string"
+        ? err
+        : String(err);
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.type) {
+      return t(`errors.${parsed.type}`, `Backend Error: ${parsed.type}`);
     }
+  } catch {
+    return raw;
   }
-  return String(err);
+
+  return raw;
 }
 
 // ==========================================
@@ -260,7 +267,7 @@ window.addEventListener("DOMContentLoaded", () => {
       --winui-accent-text: #ffffff;
       
       --winui-window-bg: ${isTauri ? 'transparent' : '#f3f3f3'};
-      -winui-card: rgba(255, 255, 255, 0.7);
+      --winui-card: rgba(255, 255, 255, 0.7);
       --winui-card-border: rgba(0, 0, 0, 0.07);
       --winui-card-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.02), 0 1px 2px rgba(0, 0, 0, 0.02);
       --winui-text-main: rgba(0, 0, 0, 0.9);
@@ -813,11 +820,16 @@ window.addEventListener("DOMContentLoaded", () => {
           timeline.addLog(t('logs.analysis_error'), parseAppError(err), "failed");
         }
       } else {
-        timeline.addLog(
-          t('logs.analysis_completed'), 
-          `[Web Mode]\n${t('file')}: ${webSelectedFile?.name}\nРазбор структуры файла в браузере имитирован успешно.`, 
-          "info"
-        );
+        try {
+          const res = await analyzePdfWeb(webSelectedFile);
+          let logContent = `${t('file')}: ${res.file_name}\n${t('ratios_found')}\n`;
+          for (const [ratioKey, count] of Object.entries(res.ratios)) {
+            logContent += `  • ${translateRatio(ratioKey)}: ${getPagesString(count)}\n`;
+          }
+          timeline.addLog(t('logs.analysis_completed'), logContent.trim(), "info");
+        } catch (err) {
+          timeline.addLog(t('logs.analysis_error'), parseAppError(err), "failed");
+        }
       }
     }
   });
@@ -850,19 +862,18 @@ window.addEventListener("DOMContentLoaded", () => {
         }
       } else {
         if (!webSelectedFile) return;
-        
-        const blobUrl = URL.createObjectURL(webSelectedFile);
-        const downloadAnchor = document.createElement("a");
-        downloadAnchor.href = blobUrl;
-        downloadAnchor.download = `resized_${webSelectedFile.name}`;
-        downloadAnchor.click();
-        URL.revokeObjectURL(blobUrl);
 
-        timeline.addLog(
-          t('logs.generation_success'), 
-          `[Web Mode] Файл обработан внутри песочницы браузера и скачан.`, 
-          "success"
-        );
+        try {
+          const res = await resizePdfWeb(webSelectedFile, wr, hr);
+          downloadPdfBlob(res.blob, `resized_${webSelectedFile.name}`);
+          const successContent = formatString(t("resize_success"), {
+            w: Math.round(res.target_w),
+            h: Math.round(res.target_h),
+          });
+          timeline.addLog(t('logs.generation_success'), successContent, "success");
+        } catch (err) {
+          timeline.addLog(t('logs.generation_error'), parseAppError(err), "failed");
+        }
       }
     }
   });
