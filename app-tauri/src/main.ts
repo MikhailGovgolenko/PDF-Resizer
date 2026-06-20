@@ -303,7 +303,7 @@ window.addEventListener("DOMContentLoaded", () => {
       --winui-control-bg: rgba(255, 255, 255, 0.7);
       --winui-control-border: rgba(0, 0, 0, 0.1);
       --winui-control-border-hover: rgba(0, 0, 0, 0.16);
-      --winui-flyout-bg: rgba(243, 243, 243, 0.95);
+      --winui-flyout-bg: #f9f9f9;
       --winui-flyout-border: rgba(0, 0, 0, 0.1);
       --winui-flyout-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
       --font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -336,7 +336,7 @@ window.addEventListener("DOMContentLoaded", () => {
         --winui-control-bg: rgba(30, 30, 30, 0.7);
         --winui-control-border: rgba(255, 255, 255, 0.08);
         --winui-control-border-hover: rgba(255, 255, 255, 0.15);
-        --winui-flyout-bg: rgba(44, 44, 44, 0.95);
+        --winui-flyout-bg: #2c2c2c;
         --winui-flyout-border: rgba(255, 255, 255, 0.08);
         --winui-flyout-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
       }
@@ -364,6 +364,7 @@ window.addEventListener("DOMContentLoaded", () => {
     .app-container { padding: calc(24px + env(safe-area-inset-top, 0px)) calc(24px + env(safe-area-inset-right, 0px)) calc(24px + env(safe-area-inset-bottom, 0px)) calc(24px + env(safe-area-inset-left, 0px)); height: var(--app-viewport-height, 100dvh); min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 16px; background: transparent; max-width: calc(800px + env(safe-area-inset-left, 0px) + env(safe-area-inset-right, 0px)); margin: 0 auto; width: 100%; }
     .win-card { background: var(--winui-card); border: 1px solid var(--winui-card-border); border-radius: 8px; padding: 16px; box-shadow: var(--winui-card-shadow); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
     .file-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 24px !important; }
+    .controls-card { position: relative; z-index: 20; overflow: visible; }
     
     .svg-icon { display: inline-flex; align-items: center; justify-content: center; color: currentColor; }
     .btn, .btn-clear, .win-combobox-button, .win-input {
@@ -578,23 +579,24 @@ window.addEventListener("DOMContentLoaded", () => {
          border: 1px solid var(--winui-flyout-border);
          border-radius: 8px;
          box-shadow: var(--winui-flyout-shadow);
-         z-index: 1000;
+         z-index: 30;
          padding: 4px 0;
          display: none;
          opacity: 0;
          transform: translateY(-8px);
          transition: opacity var(--fluent-timing-normal), transform var(--fluent-timing-normal);
-         backdrop-filter: blur(20px) saturate(140%);
-         -webkit-backdrop-filter: blur(20px) saturate(140%);
+         pointer-events: none;
        }
        .win-combobox-flyout.show {
          display: block;
          opacity: 1;
          transform: translateY(0);
+         pointer-events: auto;
        }
    
        .win-combobox-item {
-         padding: 6px 16px;
+         min-height: 36px;
+         padding: 7px 16px;
          font-size: 14px;
          color: var(--winui-text-main);
          cursor: pointer;
@@ -602,7 +604,10 @@ window.addEventListener("DOMContentLoaded", () => {
          border-radius: 4px;
          position: relative;
          transition: background-color var(--fluent-timing-fast);
+         display: flex;
+         align-items: center;
          text-align: left;
+         touch-action: manipulation;
        }
        .win-combobox-item:hover {
          background-color: var(--winui-btn-hover);
@@ -734,7 +739,7 @@ window.addEventListener("DOMContentLoaded", () => {
   // CARD 2: Grid Layout Parameters
   // ——————————————————————————————————————————
   const gridCard = document.createElement("div");
-  gridCard.className = "win-card";
+  gridCard.className = "win-card controls-card";
 
   const gridRow = document.createElement("div");
   gridRow.className = "input-grid-row";
@@ -805,6 +810,7 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   document.addEventListener("click", () => toggleFlyout(false));
+  comboFlyout.addEventListener("click", (e) => e.stopPropagation());
 
   comboFlyout.querySelectorAll(".win-combobox-item").forEach((item) => {
     item.addEventListener("click", (e) => {
@@ -814,6 +820,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
       comboBtn.querySelector("span")!.textContent = target.textContent;
       AppState.activePreset = target.getAttribute("data-value") || "a-series";
+      toggleFlyout(false);
     });
   });
 
