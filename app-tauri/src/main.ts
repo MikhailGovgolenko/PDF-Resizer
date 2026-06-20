@@ -325,7 +325,22 @@ window.addEventListener("DOMContentLoaded", () => {
     }
 
     html, body { margin: 0; padding: 0; background-color: var(--winui-window-bg) !important; height: 100vh; overflow: hidden; }
-    * { box-sizing: border-box; font-family: var(--font-family); -webkit-font-smoothing: antialiased; user-select: none !important; -webkit-user-select: none !important; }
+    * { box-sizing: border-box; font-family: var(--font-family); -webkit-font-smoothing: antialiased;${isTauri ? " user-select: none !important; -webkit-user-select: none !important;" : ""} }
+    ${isTauri ? `
+    .win-input {
+      user-select: text !important;
+      -webkit-user-select: text !important;
+    }
+    ` : `
+    .btn, .btn-clear, .win-combobox-button, .win-combobox-item, .log-header label, .input-group label, .svg-icon {
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .log-viewport, .log-entry, .log-entry *, .file-status, .win-input {
+      user-select: text !important;
+      -webkit-user-select: text !important;
+    }
+    `}
     
     .app-container { padding: 24px; height: 100vh; display: flex; flex-direction: column; gap: 16px; background: transparent; max-width: 800px; margin: 0 auto; width: 100%; }
     .win-card { background: var(--winui-card); border: 1px solid var(--winui-card-border); border-radius: 8px; padding: 16px; box-shadow: var(--winui-card-shadow); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
@@ -455,8 +470,6 @@ window.addEventListener("DOMContentLoaded", () => {
          text-align: center; 
          transition: background-color var(--fluent-timing-fast), border-color var(--fluent-timing-fast); 
          -moz-appearance: textfield; 
-         user-select: text !important; 
-         -webkit-user-select: text !important; 
        }
        .win-input::-webkit-outer-spin-button, .win-input::-webkit-inner-spin-button {
          -webkit-appearance: none;
@@ -593,7 +606,7 @@ window.addEventListener("DOMContentLoaded", () => {
     .log-container { flex: 1; display: flex; flex-direction: column; min-height: 0; }
     .log-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; padding: 0 2px; }
     .log-header label { font-size: 13px; color: var(--winui-text-main); }
-    .log-viewport { flex: 1; background: rgba(255, 255, 255, 0.4); border: 1px solid var(--winui-card-border); border-radius: 6px; padding: 12px; overflow-y: auto; font-family: monospace; font-size: 12px; line-height: 1.5; color: var(--winui-text-main); user-select: text !important; -webkit-user-select: text !important; }
+    .log-viewport { flex: 1; background: rgba(255, 255, 255, 0.4); border: 1px solid var(--winui-card-border); border-radius: 6px; padding: 12px; overflow-y: auto; font-family: monospace; font-size: 12px; line-height: 1.5; color: var(--winui-text-main); }
     .log-placeholder { color: var(--winui-text-disabled) !important;  text-align: center; padding-top: 10px; }
     .log-entry { margin-bottom: 6px; padding: 8px 12px; border-radius: 4px; border: 1px solid var(--winui-card-border); background: color-mix(in oklab, var(--winui-accent) 2%, var(--winui-card)); text-align: left; }
 
@@ -649,6 +662,7 @@ window.addEventListener("DOMContentLoaded", () => {
   textMetaBlock.innerHTML = `<div style="font-size: 14px; font-weight: 400; color: var(--winui-text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${t('ui.target_document')}</div>`;
 
   const fileStatus = document.createElement("div");
+  fileStatus.className = "file-status";
   fileStatus.style.cssText = "font-size: 12px; color: var(--winui-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;";
   
   textMetaBlock.appendChild(fileStatus);
