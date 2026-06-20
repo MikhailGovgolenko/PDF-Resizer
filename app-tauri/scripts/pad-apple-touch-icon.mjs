@@ -11,23 +11,26 @@ const SCALE = 0.68;
 const icons = [
   {
     source: "assets/icon-light.png",
-    output: "public/apple-touch-icon-light.png",
-    background: { r: 0, g: 0, b: 0, alpha: 1 },
+    appleOutput: "public/apple-touch-icon-light.png",
+    faviconOutput: "public/favicon-light.png",
+    background: { r: 255, g: 255, b: 255, alpha: 1 },
     theme: "light",
   },
   {
     source: "assets/icon-dark.png",
-    output: "public/apple-touch-icon-dark.png",
-    background: { r: 255, g: 255, b: 255, alpha: 1 },
+    appleOutput: "public/apple-touch-icon-dark.png",
+    faviconOutput: "public/favicon-dark.png",
+    background: { r: 0, g: 0, b: 0, alpha: 1 },
     theme: "dark",
   },
 ];
 
 for (const icon of icons) {
   const source = path.join(root, icon.source);
-  const output = path.join(root, icon.output);
+  const flattened = sharp(source).flatten({ background: icon.background });
 
-  const resized = await sharp(source)
+  const resized = await flattened
+    .clone()
     .resize(Math.round(SIZE * SCALE), Math.round(SIZE * SCALE), { fit: "inside" })
     .toBuffer();
 
@@ -41,7 +44,9 @@ for (const icon of icons) {
   })
     .composite([{ input: resized, gravity: "center" }])
     .png()
-    .toFile(output);
+    .toFile(path.join(root, icon.appleOutput));
 
-  console.log(`Wrote ${icon.output} (${icon.theme} theme, ${SCALE * 100}% scale)`);
+  await flattened.clone().png().toFile(path.join(root, icon.faviconOutput));
+
+  console.log(`Wrote ${icon.appleOutput} and ${icon.faviconOutput} (${icon.theme} theme)`);
 }
