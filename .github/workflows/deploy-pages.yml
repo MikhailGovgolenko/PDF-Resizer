@@ -22,7 +22,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
           cache-dependency-path: app-tauri/package-lock.json
 
@@ -30,9 +30,9 @@ jobs:
         working-directory: app-tauri
         run: |
           npm ci
-          npm run build
+          npm run build:pages
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v4
         with:
           path: app-tauri/dist
 

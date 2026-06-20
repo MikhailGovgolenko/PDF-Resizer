@@ -1,7 +1,9 @@
 import { defineConfig } from "vite";
 
 const host = process.env.TAURI_DEV_HOST;
-const base = process.env.TAURI_ENV_PLATFORM ? "/" : "/PDF-Converter/";
+const isTauriBuild = Boolean(process.env.TAURI_ENV_PLATFORM);
+const isGitHubPages = process.env.GITHUB_ACTIONS === "true";
+const base = isTauriBuild ? "/" : isGitHubPages ? "/PDF-Converter/" : "/";
 
 // https://vite.dev/config/
 export default defineConfig(async () => ({
