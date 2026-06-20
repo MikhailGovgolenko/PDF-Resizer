@@ -7,7 +7,7 @@
     "width_label": "Ширина",
     "height_label": "Высота",
     "analyze_btn": "Анализировать",
-    "generate_btn": "Создать PDF",
+    "generate_btn": "Скачать PDF",
     "timeline_label": "Хронология процессов",
     "clear_history": "Очистить историю",
     "ready_placeholder": "Готов к обработке документов..."

@@ -542,6 +542,7 @@ window.addEventListener("DOMContentLoaded", () => {
          display: flex;
          align-items: center;
          justify-content: center;
+         color: var(--winui-text-secondary);
        }
        .separator-x {
          font-family: var(--font-icons);

@@ -7,7 +7,7 @@
     "width_label": "Width ratio",
     "height_label": "Height ratio",
     "analyze_btn": "Analyze",
-    "generate_btn": "Generate PDF",
+    "generate_btn": "Download PDF",
     "timeline_label": "Process Timeline",
     "clear_history": "Clear history",
     "ready_placeholder": "Ready to process documents..."
