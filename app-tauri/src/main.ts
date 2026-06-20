@@ -258,6 +258,8 @@ window.addEventListener("DOMContentLoaded", () => {
     initAccentColorListener();
 
     document.addEventListener("contextmenu", (e) => e.preventDefault(), { capture: true });
+  } else {
+    document.addEventListener("gesturestart", (e) => e.preventDefault(), { passive: false });
   }
 
   // Инжектим стили
@@ -328,7 +330,7 @@ window.addEventListener("DOMContentLoaded", () => {
       .log-viewport { background: rgba(0, 0, 0, 0.3) !important; }
     }
 
-    html, body { margin: 0; padding: 0; background-color: var(--winui-window-bg) !important; height: 100vh; overflow: hidden; }
+    html, body { margin: 0; padding: 0; background-color: var(--winui-window-bg) !important; height: 100vh; overflow: hidden;${!isTauri ? " touch-action: manipulation;" : ""} }
     * { box-sizing: border-box; font-family: var(--font-family); -webkit-font-smoothing: antialiased;${blockTextSelection ? " user-select: none !important; -webkit-user-select: none !important; -webkit-touch-callout: none;" : ""} }
     ${blockTextSelection ? `
     .win-input {
