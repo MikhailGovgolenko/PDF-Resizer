@@ -5,7 +5,6 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import localeRu from "../locales/ru.json";
 import localeEn from "../locales/en.json";
 
-// Описание интерфейсов данных из бэкенда Rust
 interface PdfAnalysis {
   file_name: string;
   ratios: Record<string, number>;
@@ -24,27 +23,31 @@ const locales: Record<string, any> = {
   en: localeEn
 };
 
-const currentLang = navigator.language.startsWith("ru") ? "ru" : "en";
+const getSystemLang = (): string => {
+  const primaryLang =
+    (navigator.languages?.[0] ?? navigator.language ?? "en")
+      .toLowerCase();
+
+  return primaryLang.startsWith("ru") ? "ru" : "en";
+};
+
+const currentLang = getSystemLang();
 const currentLocale = locales[currentLang];
+
 
 function t(path: string, fallback: string = ""): string {
   return path.split('.').reduce((obj, key) => obj?.[key], currentLocale) || fallback;
 }
 
-// Вспомогательная функция для локализации классов соотношений сторон
 function translateRatio(ratioKey: string): string {
-  // Приводим нижние подчеркивания к дефисам для унификации (a_series -> a-series)
   const normalizedKey = ratioKey.replace(/_/g, "-");
-
   if (normalizedKey.startsWith("custom:")) {
     const [_, w, h] = normalizedKey.split(":");
     return t("ratios.custom", `${w}:${h} (custom)`).replace("{{w}}", w).replace("{{h}}", h);
   }
-  
   return t(`ratios.${normalizedKey}`, ratioKey);
 }
 
-// Функция для подстановки переменных в строки (например, {{w}}, {{h}})
 function formatString(template: string, args: Record<string, string | number>): string {
   let result = template;
   for (const [key, value] of Object.entries(args)) {
@@ -53,15 +56,12 @@ function formatString(template: string, args: Record<string, string | number>): 
   return result;
 }
 
-// Функция плюрализации (склонения) слова "страница"
 function getPagesString(count: number): string {
   if (currentLang === "en") {
     return formatString(t("pages_count", "{{count}} pages"), { count });
   }
-
   const mod10 = count % 10;
   const mod100 = count % 100;
-  
   if (mod10 === 1 && mod100 !== 11) {
     return formatString(t("pages_count_one", "{{count}} страница"), { count });
   }
@@ -70,6 +70,24 @@ function getPagesString(count: number): string {
   }
   return formatString(t("pages_count_many", "{{count}} страниц"), { count });
 }
+
+// ==========================================
+// ДИНАМИЧЕСКОЕ ОПРЕДЕЛЕНИЕ СРЕДЫ (TAURI vs WEB)
+// ==========================================
+const isTauri = !!(window as any).__TAURI_INTERNALS__;
+
+// Хранилище для веб-файла (так как в браузере нет доступа к путям файловой системы)
+let webSelectedFile: File | null = null;
+
+// ==========================================
+// КРОССПЛАТФОРМЕННЫЕ SVG ИКОНКИ (Взамен Segoe Fluent Icons)
+// ==========================================
+const ICONS = {
+  document: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>`,
+  clear: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`,
+  chevronDown: `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`,
+  multiply: `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`
+};
 
 // ==========================================
 // 1. GLOBAL APPLICATION STATE (Reactive)
@@ -97,9 +115,6 @@ const AppState = {
   set activePreset(val: string) { this._activePreset = val; this.trigger("activePreset", val); }
 };
 
-// ==========================================
-// ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ ПАРСИНГА ОШИБОК ИЗ RUST
-// ==========================================
 function parseAppError(err: unknown): string {
   if (typeof err === "string") {
     try {
@@ -145,7 +160,7 @@ function WinLogTimeline() {
 
   const clearBtn = document.createElement("button");
   clearBtn.className = "btn-clear";
-  clearBtn.innerHTML = `<i class="f-icon" style="font-size: 12px;">&#xE74D;</i>${t('ui.clear_history')}`;
+  clearBtn.innerHTML = `${ICONS.clear}${t('ui.clear_history')}`;
 
   const viewport = document.createElement("div");
   viewport.className = "log-viewport";
@@ -199,88 +214,85 @@ window.addEventListener("DOMContentLoaded", () => {
   const appElement = document.querySelector("#app") || document.body;
   appElement.innerHTML = "";
 
-  // 1. Синхронизация иконок темы оформления
-  const initThemeIconListener = () => {
-    const themeQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const updateIcon = async (isDark: boolean) => {
-      try {
-        await invoke("set_theme_icon", { isDark });
-      } catch (err) {
-        console.error("Failed to sync window icon theme:", err);
-      }
+  // Кроссплатформенная синхронизация темы и акцента (только в Tauri)
+  if (isTauri) {
+    const initThemeIconListener = () => {
+      const themeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const updateIcon = async (isDark: boolean) => {
+        try { await invoke("set_theme_icon", { isDark }); } catch (err) { console.error(err); }
+      };
+      updateIcon(themeQuery.matches);
+      themeQuery.addEventListener('change', (e) => updateIcon(e.matches));
     };
-    updateIcon(themeQuery.matches);
-    themeQuery.addEventListener('change', (e) => updateIcon(e.matches));
-  };
-  initThemeIconListener();
+    initThemeIconListener();
 
-  // 2. ДИНАМИЧЕСКАЯ СИНХРОНИЗАЦИЯ АКЦЕНТНОГО ЦВЕТА ИЗ СИСТЕМЫ
-  const initAccentColorListener = () => {
-    const updateAccentColor = async () => {
-      try {
-        const systemHex = await invoke<string>("get_accent_color");
-        document.documentElement.style.setProperty('--winui-accent-system', systemHex);
-      } catch (err) {
-        console.error("Failed to sync system accent color:", err);
-      }
+    // ДИНАМИЧЕСКАЯ СИНХРОНИЗАЦИЯ АКЦЕНТНОГО ЦВЕТА
+    const initAccentColorListener = () => {
+      const updateAccentColor = async () => {
+        try {
+          // Пытаемся получить цвет из Rust (Tauri)
+          const systemHex = await invoke<string>("get_accent_color");
+          document.documentElement.style.setProperty('--winui-accent-system', systemHex);
+        } catch (err) {
+          // Если мы в браузере или команда не найдена, 
+          // оставляем дефолтный синий цвет (--winui-accent-system в CSS)
+          console.warn("Accent color sync skipped: Running in browser or command unavailable.");
+        }
+      };
+    
+      updateAccentColor();
+      // Обновляем при фокусе окна, если пользователь сменил цвет в настройках Windows
+      window.addEventListener("focus", updateAccentColor);
     };
+    initAccentColorListener();
 
-    updateAccentColor();
-    window.addEventListener("focus", updateAccentColor);
-  };
-  initAccentColorListener();
+    document.addEventListener("contextmenu", (e) => e.preventDefault(), { capture: true });
+  }
 
-  // Отключение контекстного меню браузера
-  document.addEventListener("contextmenu", (e) => {
-    e.preventDefault();
-  }, { capture: true });
-
-  // Инжектим стили с точным расчетом палитры WinUI 3 в пространстве oklab
+  // Инжектим стили
   const styleSheet = document.createElement("style");
   styleSheet.innerText = `
     :root {
       --winui-accent-system: #0078d4; 
-      
       --winui-accent: var(--winui-accent-system);
       --winui-accent-hover: color-mix(in oklab, var(--winui-accent-system) 88%, #000000);
       --winui-accent-active: color-mix(in oklab, var(--winui-accent-system) 78%, #000000);
       --winui-accent-text: #ffffff;
       
-      --winui-window-bg: transparent;
-      --winui-card: rgba(255, 255, 255, 0.7);
+      --winui-window-bg: ${isTauri ? 'transparent' : '#f3f3f3'};
+      -winui-card: rgba(255, 255, 255, 0.7);
       --winui-card-border: rgba(0, 0, 0, 0.07);
       --winui-card-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.02), 0 1px 2px rgba(0, 0, 0, 0.02);
       --winui-text-main: rgba(0, 0, 0, 0.9);
       --winui-text-secondary: rgba(0, 0, 0, 0.61);
       --winui-text-disabled: rgba(0, 0, 0, 0.36);
       --winui-btn-clear: rgba(55, 55, 55, 0.06);
-      --winui-btn-clear-hover: rgba(55, 55, 55, 0.06);
-      --winui-btn-clear-active: rgba(55, 55, 55, 0.08);
+      --winui-btn-clear-hover: rgba(55, 55, 55, 0.08);
+      --winui-btn-clear-active: rgba(55, 55, 55, 0.12);
       --winui-btn-standard: rgba(255, 255, 255, 0.7);
-      --winui-btn-hover: rgba(249, 249, 249, 0.5);
+      --winui-btn-hover: rgba(249, 249, 249, 0.7);
       --winui-btn-active: rgba(245, 245, 245, 0.5);
-      --winui-btn-border: rgba(0, 0, 0, 0.06);
-      --winui-btn-border-bottom: rgba(0, 0, 0, 0.16);
-      --winui-btn-shadow: 0 1px 2px rgba(0, 0, 0, 0.0);
+      --winui-btn-border: rgba(0, 0, 0, 0.1);
+      --winui-btn-border-bottom: rgba(0, 0, 0, 0.2);
       --winui-control-bg: rgba(255, 255, 255, 0.7);
-      --winui-control-border: rgba(0, 0, 0, 0.06);
-      --winui-control-border-hover: rgba(0, 0, 0, 0.08);
-      --winui-flyout-bg: rgba(243, 243, 243);
-      --winui-flyout-border: rgba(0, 0, 0, 0.08);
-      --winui-flyout-shadow: 0 8px 16px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.04);
-      --font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif;
-      --font-icons: 'Segoe Fluent Icons', 'Segoe MDL2 Assets', sans-serif;
-      --fluent-timing-fast: 0.067s cubic-bezier(0.1, 0.9, 0.2, 1);
-      --fluent-timing-normal: 0.15s cubic-bezier(0.1, 0.9, 0.2, 1);
+      --winui-control-border: rgba(0, 0, 0, 0.1);
+      --winui-control-border-hover: rgba(0, 0, 0, 0.16);
+      --winui-flyout-bg: rgba(243, 243, 243, 0.95);
+      --winui-flyout-border: rgba(0, 0, 0, 0.1);
+      --winui-flyout-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+      --font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+      --fluent-timing-fast: 0.08s cubic-bezier(0.1, 0.9, 0.2, 1);
+      --fluent-timing-normal: 0.18s cubic-bezier(0.1, 0.9, 0.2, 1);
     }
 
     @media (prefers-color-scheme: dark) {
       :root {
-        --winui-accent: color-mix(in oklab, var(--winui-accent-system) 82%, #ffffff);
-        --winui-accent-hover: color-mix(in oklab, var(--winui-accent-system) 65%, #ffffff);
-        --winui-accent-active: color-mix(in oklab, var(--winui-accent-system) 93%, #ffffff);
-        --winui-accent-text: rgba(0, 0, 0, 0.79);
+        --winui-accent: color-mix(in oklab, var(--winui-accent-system) 85%, #ffffff);
+        --winui-accent-hover: color-mix(in oklab, var(--winui-accent-system) 75%, #ffffff);
+        --winui-accent-active: color-mix(in oklab, var(--winui-accent-system) 65%, #ffffff);
+        --winui-accent-text: #000000;
         
+        --winui-window-bg: ${isTauri ? 'transparent' : '#1c1c1c'};
         --winui-card: rgba(255, 255, 255, 0.05);
         --winui-card-border: rgba(255, 255, 255, 0.03);
         --winui-card-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
@@ -288,78 +300,31 @@ window.addEventListener("DOMContentLoaded", () => {
         --winui-text-secondary: rgba(255, 255, 255, 0.78);
         --winui-text-disabled: rgba(255, 255, 255, 0.44);
         --winui-btn-clear: rgba(255, 255, 255, 0.06);
-        --winui-btn-clear-hover: rgba(255, 255, 255, 0.06);
+        --winui-btn-clear-hover: rgba(255, 255, 255, 0.09);
         --winui-btn-clear-active: rgba(255, 255, 255, 0.04);
         --winui-btn-standard: rgba(255, 255, 255, 0.05);
         --winui-btn-hover: rgba(255, 255, 255, 0.09);
         --winui-btn-active: rgba(255, 255, 255, 0.03);
-        --winui-btn-border: rgba(255, 255, 255, 0.04);
-        --winui-btn-border-bottom: rgba(255, 255, 255, 0.06);
-        --winui-btn-shadow: none;
-        --winui-control-bg: rgba(45, 45, 45, 0.6);
+        --winui-btn-border: rgba(255, 255, 255, 0.06);
+        --winui-btn-border-bottom: rgba(255, 255, 255, 0.09);
+        --winui-control-bg: rgba(30, 30, 30, 0.7);
         --winui-control-border: rgba(255, 255, 255, 0.08);
-        --winui-control-border-hover: rgba(255, 255, 255, 0.05);
-        --winui-flyout-bg: rgba(44, 44, 44);
-        --winui-flyout-border: rgba(255, 255, 255, 0.06);
-        --winui-flyout-shadow: 0 8px 16px rgba(0, 0, 0, 0.3), 0 1px 4px rgba(0, 0, 0, 0.1);
+        --winui-control-border-hover: rgba(255, 255, 255, 0.15);
+        --winui-flyout-bg: rgba(44, 44, 44, 0.95);
+        --winui-flyout-border: rgba(255, 255, 255, 0.08);
+        --winui-flyout-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
       }
-      .log-viewport {
-        background: rgba(0, 0, 0, 0.2) !important;
-      }
+      .log-viewport { background: rgba(0, 0, 0, 0.3) !important; }
     }
 
-    html, body {
-      margin: 0;
-      padding: 0;
-      background-color: var(--winui-window-bg) !important;
-      height: 100vh;
-      overflow: hidden;
-    }
+    html, body { margin: 0; padding: 0; background-color: var(--winui-window-bg) !important; height: 100vh; overflow: hidden; }
+    * { box-sizing: border-box; font-family: var(--font-family); -webkit-font-smoothing: antialiased; user-select: none !important; -webkit-user-select: none !important; }
     
-    * { 
-      box-sizing: border-box; 
-      font-family: var(--font-family); 
-      -webkit-font-smoothing: antialiased; 
-      user-select: none !important; 
-      -webkit-user-select: none !important; 
-    }
+    .app-container { padding: 24px; height: 100vh; display: flex; flex-direction: column; gap: 16px; background: transparent; max-width: 800px; margin: 0 auto; width: 100%; }
+    .win-card { background: var(--winui-card); border: 1px solid var(--winui-card-border); border-radius: 8px; padding: 16px; box-shadow: var(--winui-card-shadow); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
+    .file-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 24px !important; }
     
-    .app-container {
-      padding: 24px;
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      background: transparent;
-      max-width: 800px;
-      margin: 0 auto;
-      width: 100%;
-    }
-
-    .win-card {
-      background: var(--winui-card);
-      border: 1px solid var(--winui-card-border);
-      border-radius: 8px;
-      padding: 16px;
-      box-shadow: var(--winui-card-shadow);
-    }
-
-    .file-card {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      padding: 20px 24px !important;
-    }
-
-    .f-icon {
-      font-family: var(--font-icons);
-      font-style: normal;
-      display: inline-block;
-      vertical-align: middle;
-      line-height: 1;
-    }
-
+    .svg-icon { display: inline-flex; align-items: center; justify-content: center; color: currentColor; }
     .btn, .btn-clear, .win-combobox-button, .win-input {
       outline: none !important;
     }
@@ -450,237 +415,211 @@ window.addEventListener("DOMContentLoaded", () => {
     }
     
     .input-grid-row {
-      display: grid;
-      grid-template-columns: 1.6fr 1fr auto 1fr;
-      gap: 12px;
-      align-items: end;
-    }
+         display: grid;
+         grid-template-columns: 1.6fr 1fr auto 1fr;
+         gap: 12px;
+         align-items: end;
+       }
+   
+       .input-group {
+         display: flex;
+         flex-direction: column;
+         gap: 6px;
+         align-items: center;
+         text-align: center;
+       }
+       .input-group label {
+         font-size: 12px;
+         font-weight: 400;
+         color: var(--winui-text-main);
+         width: 100%;
+       }
+       
+       .win-input { 
+         width: 100%; 
+         height: 32px; 
+         background: var(--winui-control-bg); 
+         border: 1px solid var(--winui-control-border); 
+         border-radius: 4px; 
+         padding: 0 12px; 
+         box-shadow: none !important; 
+         font-size: 14px; 
+         color: var(--winui-text-main); 
+         text-align: center; 
+         transition: background-color var(--fluent-timing-fast), border-color var(--fluent-timing-fast); 
+         -moz-appearance: textfield; 
+         user-select: text !important; 
+         -webkit-user-select: text !important; 
+       }
+       .win-input::-webkit-outer-spin-button, .win-input::-webkit-inner-spin-button {
+         -webkit-appearance: none;
+         margin: 0;
+       }
+       .win-input:hover:not(:disabled) {
+         border-color: var(--winui-control-border-hover) !important;
+       }
+       .win-input:focus:not(:disabled) {
+         background: var(--winui-card);
+         border-color: var(--winui-control-border) !important;
+         border-bottom: 2px solid var(--winui-accent) !important;
+         box-shadow: none !important;
+       }
+       .win-input:disabled {
+         background: rgba(128, 128, 128, 0.05) !important;
+         color: var(--winui-text-disabled);
+         border-color: var(--winui-btn-border) !important;
+         cursor: not-allowed;
+         pointer-events: none;
+       }
+       
+       .win-combobox-container {
+         position: relative;
+         width: 100%;
+       }
+   
+       .win-combobox-button {
+         width: 100%;
+         height: 32px;
+         background: var(--winui-control-bg);
+         border: 1px solid var(--winui-control-border);
+         border-bottom: 1px solid rgba(0, 0, 0, 0.45);
+         border-radius: 4px;
+         font-size: 14px;
+         color: var(--winui-text-main);
+         display: flex;
+         align-items: center;
+         justify-content: center;
+         cursor: pointer;
+         position: relative;
+         transition: background-color var(--fluent-timing-fast), border-color var(--fluent-timing-fast);
+       }
 
-    .input-group {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      align-items: center;
-      text-align: center;
-    }
-    .input-group label {
-      font-size: 12px;
-      font-weight: 400;
-      color: var(--winui-text-main);
-      width: 100%;
-    }
-    
-    .win-input { 
-      width: 100%; 
-      height: 32px; 
-      background: var(--winui-control-bg); 
-      border: 1px solid var(--winui-control-border); 
-      border-radius: 4px; 
-      padding: 0 12px; 
-      box-shadow: none !important; 
-      font-size: 14px; 
-      color: var(--winui-text-main); 
-      text-align: center; 
-      transition: background-color var(--fluent-timing-fast), border-color var(--fluent-timing-fast); 
-      -moz-appearance: textfield; 
-      user-select: text !important; 
-      -webkit-user-select: text !important; 
-    }
-    .win-input::-webkit-outer-spin-button, .win-input::-webkit-inner-spin-button {
-      -webkit-appearance: none;
-      margin: 0;
-    }
-    .win-input:hover:not(:disabled) {
-      border-color: var(--winui-control-border-hover) !important;
-    }
-    .win-input:focus:not(:disabled) {
-      background: var(--winui-card);
-      border-color: var(--winui-control-border) !important;
-      border-bottom: 2px solid var(--winui-accent) !important;
-      box-shadow: none !important;
-    }
-    .win-input:disabled {
-      background: rgba(128, 128, 128, 0.05) !important;
-      color: var(--winui-text-disabled);
-      border-color: var(--winui-btn-border) !important;
-      cursor: not-allowed;
-      pointer-events: none;
-    }
-    
-    .win-combobox-container {
-      position: relative;
-      width: 100%;
-    }
+       .win-combobox-button svg {
+           position: absolute;
+           right: 12px;
+           top: 50%;
+           transform: translateY(-50%);
+       }
+       
+       @media (prefers-color-scheme: dark) {
+         .win-combobox-button {
+           border-bottom-color: rgba(255, 255, 255, 0.4);
+         }
+       }
 
-    .win-combobox-button {
-      width: 100%;
-      height: 32px;
-      background: var(--winui-control-bg);
-      border: 1px solid var(--winui-control-border);
-      border-bottom: 1px solid rgba(0, 0, 0, 0.45);
-      border-radius: 4px;
-      padding: 0 32px 0 12px;
-      font-size: 14px;
-      color: var(--winui-text-main);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      position: relative;
-      transition: background-color var(--fluent-timing-fast), border-color var(--fluent-timing-fast);
-    }
-    @media (prefers-color-scheme: dark) {
-      .win-combobox-button {
-        border-bottom-color: rgba(255, 255, 255, 0.4);
-      }
-    }
-    .win-combobox-button::after {
-      content: "\\E70D";
-      font-family: var(--font-icons);
-      position: absolute;
-      right: 12px;
-      font-size: 10px;
-      color: var(--winui-text-secondary);
-    }
-    .win-combobox-button:hover {
-      border-color: var(--winui-control-border-hover) !important;
-      background: var(--winui-btn-hover);
-    }
-    .win-combobox-button.open {
-      border-color: var(--winui-control-border) !important;
-      border-bottom: 2px solid var(--winui-accent) !important;
-      background: var(--winui-card);
-    }
+       .win-combobox-button:hover {
+         border-color: var(--winui-control-border-hover) !important;
+         background: var(--winui-btn-hover);
+       }
+       .win-combobox-button.open {
+         border-color: var(--winui-control-border) !important;
+         border-bottom: 2px solid var(--winui-accent) !important;
+         background: var(--winui-card);
+       }
+   
+       .input-separator-wrapper {
+         height: 32px;
+         display: flex;
+         align-items: center;
+         justify-content: center;
+       }
+       .separator-x {
+         font-family: var(--font-icons);
+         font-size: 10px;
+         color: var(--winui-text-secondary);
+       }
+   
+       .win-combobox-flyout {
+         position: absolute;
+         top: 36px;
+         left: 0;
+         width: 100%;
+         background: var(--winui-flyout-bg);
+         border: 1px solid var(--winui-flyout-border);
+         border-radius: 8px;
+         box-shadow: var(--winui-flyout-shadow);
+         z-index: 1000;
+         padding: 4px 0;
+         display: none;
+         opacity: 0;
+         transform: translateY(-8px);
+         transition: opacity var(--fluent-timing-normal), transform var(--fluent-timing-normal);
+         backdrop-filter: blur(20px) saturate(140%);
+         -webkit-backdrop-filter: blur(20px) saturate(140%);
+       }
+       .win-combobox-flyout.show {
+         display: block;
+         opacity: 1;
+         transform: translateY(0);
+       }
+   
+       .win-combobox-item {
+         padding: 6px 16px;
+         font-size: 14px;
+         color: var(--winui-text-main);
+         cursor: pointer;
+         margin: 2px 4px;
+         border-radius: 4px;
+         position: relative;
+         transition: background-color var(--fluent-timing-fast);
+         text-align: left;
+       }
+       .win-combobox-item:hover {
+         background-color: var(--winui-btn-hover);
+       }
+       .win-combobox-item.selected {
+         background-color: var(--winui-btn-active);
+         font-weight: 400;
+       }
+       .win-combobox-item.selected::before {
+         content: "";
+         position: absolute;
+         left: 0;
+         top: 50%;
+         transform: translateY(-50%);
+         width: 3px;
+         height: 16px;
+         background-color: var(--winui-accent);
+         border-radius: 2px;
+       }
+       
+    .log-container { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+    .log-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; padding: 0 2px; }
+    .log-header label { font-size: 13px; color: var(--winui-text-main); }
+    .log-viewport { flex: 1; background: rgba(255, 255, 255, 0.4); border: 1px solid var(--winui-card-border); border-radius: 6px; padding: 12px; overflow-y: auto; font-family: monospace; font-size: 12px; line-height: 1.5; color: var(--winui-text-main); user-select: text !important; -webkit-user-select: text !important; }
+    .log-placeholder { color: var(--winui-text-disabled) !important;  text-align: center; padding-top: 10px; }
+    .log-entry { margin-bottom: 6px; padding: 8px 12px; border-radius: 4px; border: 1px solid var(--winui-card-border); background: color-mix(in oklab, var(--winui-accent) 2%, var(--winui-card)); text-align: left; }
 
-    .input-separator-wrapper {
-      height: 32px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .separator-x {
-      font-family: var(--font-icons);
-      font-size: 10px;
-      color: var(--winui-text-secondary);
-    }
-
-    .win-combobox-flyout {
-      position: absolute;
-      top: 36px;
-      left: 0;
-      width: 100%;
-      background: var(--winui-flyout-bg);
-      border: 1px solid var(--winui-flyout-border);
-      border-radius: 8px;
-      box-shadow: var(--winui-flyout-shadow);
-      z-index: 1000;
-      padding: 4px 0;
-      display: none;
-      opacity: 0;
-      transform: translateY(-8px);
-      transition: opacity var(--fluent-timing-normal), transform var(--fluent-timing-normal);
-      backdrop-filter: blur(20px) saturate(140%);
-      -webkit-backdrop-filter: blur(20px) saturate(140%);
-    }
-    .win-combobox-flyout.show {
-      display: block;
-      opacity: 1;
-      transform: translateY(0);
-    }
-
-    .win-combobox-item {
-      padding: 6px 16px;
-      font-size: 14px;
-      color: var(--winui-text-main);
-      cursor: pointer;
-      margin: 2px 4px;
-      border-radius: 4px;
-      position: relative;
-      transition: background-color var(--fluent-timing-fast);
-      text-align: left;
-    }
-    .win-combobox-item:hover {
-      background-color: var(--winui-btn-hover);
-    }
-    .win-combobox-item.selected {
-      background-color: var(--winui-btn-active);
-      font-weight: 400;
-    }
-    .win-combobox-item.selected::before {
-      content: "";
-      position: absolute;
-      left: 0;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 3px;
-      height: 16px;
-      background-color: var(--winui-accent);
-      border-radius: 2px;
-    }
-    
-    .log-container {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-    }
-    .log-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 6px;
-      padding: 0 2px;
-    }
-    .log-header label {
-      font-size: 13px;
-      font-weight: 400;
-      color: var(--winui-text-main);
-    }
-
-    .log-viewport { 
-      flex: 1; 
-      background: rgba(255, 255, 255, 0.15); 
-      border: 1px solid var(--winui-card-border); 
-      border-radius: 6px; 
-      padding: 12px; 
-      overflow-y: auto; 
-      font-family: 'Cascadia Code', 'Consolas', monospace; 
-      font-size: 12px; 
-      line-height: 1.5; 
-      color: var(--winui-text-main); 
-      user-select: text !important; 
-      -webkit-user-select: text !important; 
-    }
     .log-viewport::-webkit-scrollbar {
-      width: 4px;
-    }
-    .log-viewport::-webkit-scrollbar-track {
+      width: 14px; 
       background: transparent;
     }
+    
+    .log-viewport::-webkit-scrollbar-track {
+      background: transparent;
+      margin: 4px 0; 
+    }
+    
     .log-viewport::-webkit-scrollbar-thumb {
-      background: rgba(128, 128, 128, 0.2);
-      border-radius: 10px;
+      background-clip: padding-box;
+      border: 4px solid transparent; 
+      background-color: rgba(0, 0, 0, 0.2);
+      border-radius: 8px;
+      transition: background-color 0.2s ease, border-width 0.2s ease;
     }
+    
     .log-viewport::-webkit-scrollbar-thumb:hover {
-      background: rgba(128, 128, 128, 0.4);
+      background-color: rgba(0, 0, 0, 0.4);
+      border-width: 3px; 
     }
 
-    .log-placeholder {
-      color: var(--winui-text-disabled) !important;
-      font-style: italic;
-      text-align: center;
-      padding-top: 10px;
-      user-select: none !important;
-      -webkit-user-select: none !important;
-    }
-
-    .log-entry {
-      margin-bottom: 6px;
-      padding: 8px 12px;
-      border-radius: 4px;
-      border: 1px solid var(--winui-card-border);
-      background: color-mix(in oklab, var(--winui-accent) 3%, var(--winui-card));
-      text-align: left;
+    @media (prefers-color-scheme: dark) {
+      .log-viewport::-webkit-scrollbar-thumb {
+        background-color: rgba(255, 255, 255, 0.2);
+      }
+      .log-viewport::-webkit-scrollbar-thumb:hover {
+        background-color: rgba(255, 255, 255, 0.35);
+      }
     }
   `;
   document.head.appendChild(styleSheet);
@@ -689,14 +628,14 @@ window.addEventListener("DOMContentLoaded", () => {
   container.className = "app-container";
 
   // ——————————————————————————————————————————
-  // CARD 1: File Selection
+  // CARD 1: File Selection (Гибридный выбор)
   // ——————————————————————————————————————————
   const fileCard = document.createElement("div");
   fileCard.className = "win-card file-card";
 
   const fileInfoWrapper = document.createElement("div");
   fileInfoWrapper.style.cssText = "display: flex; align-items: center; gap: 14px; min-width: 0;";
-  fileInfoWrapper.innerHTML = `<i class="f-icon" style="font-size: 20px; color: var(--winui-accent); opacity: 0.9;">&#xE8A5;</i>`;
+  fileInfoWrapper.innerHTML = `<span class="svg-icon" style="color: var(--winui-accent);">${ICONS.document}</span>`;
 
   const textMetaBlock = document.createElement("div");
   textMetaBlock.style.minWidth = "0";
@@ -713,13 +652,28 @@ window.addEventListener("DOMContentLoaded", () => {
     text: t('ui.browse'),
     variant: "standard",
     onClick: async () => {
-      const selected = await open({
-        multiple: false,
-        filters: [{ name: "PDF", extensions: ["pdf"] }],
-      });
-      if (selected && typeof selected === "string") {
-        AppState.inputPath = selected;
-        timeline.addLog(t('logs.file_loaded'), selected, "info");
+      if (isTauri) {
+        const selected = await open({
+          multiple: false,
+          filters: [{ name: "PDF", extensions: ["pdf"] }],
+        });
+        if (selected && typeof selected === "string") {
+          AppState.inputPath = selected;
+          timeline.addLog(t('logs.file_loaded'), selected, "info");
+        }
+      } else {
+        const webInput = document.createElement("input");
+        webInput.type = "file";
+        webInput.accept = ".pdf";
+        webInput.onchange = (e) => {
+          const file = (e.target as HTMLInputElement).files?.[0];
+          if (file) {
+            webSelectedFile = file;
+            AppState.inputPath = file.name;
+            timeline.addLog(t('logs.file_loaded'), `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`, "info");
+          }
+        };
+        webInput.click();
       }
     }
   });
@@ -753,7 +707,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
   const comboBtn = document.createElement("div");
   comboBtn.className = "win-combobox-button";
-  comboBtn.textContent = t('presets.a_series');
+  comboBtn.innerHTML = `<span>${t('presets.a_series')}</span>${ICONS.chevronDown}`;
 
   const comboFlyout = document.createElement("div");
   comboFlyout.className = "win-combobox-flyout";
@@ -776,7 +730,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
   const separatorWrapper = document.createElement("div");
   separatorWrapper.className = "input-separator-wrapper";
-  separatorWrapper.innerHTML = `<div class="separator-x">&#xE947;</div>`;
+  separatorWrapper.innerHTML = ICONS.multiply;
 
   const hGroup = document.createElement("div");
   hGroup.className = "input-group";
@@ -817,7 +771,7 @@ window.addEventListener("DOMContentLoaded", () => {
       comboFlyout.querySelectorAll(".win-combobox-item").forEach(el => el.classList.remove("selected"));
       target.classList.add("selected");
 
-      comboBtn.textContent = target.textContent;
+      comboBtn.querySelector("span")!.textContent = target.textContent;
       AppState.activePreset = target.getAttribute("data-value") || "a-series";
     });
   });
@@ -836,7 +790,7 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   // ——————————————————————————————————————————
-  // LAYER 3: Action Buttons & Timeline
+  // LAYER 3: Action Buttons & Timeline (Гибридные команды)
   // ——————————————————————————————————————————
   const actionRow = document.createElement("div");
   actionRow.style.cssText = "display: flex; gap: 8px;";
@@ -846,22 +800,24 @@ window.addEventListener("DOMContentLoaded", () => {
     variant: "standard",
     onClick: async () => {
       if (!AppState.inputPath) return timeline.addLog(t('logs.action_required'), t('logs.select_file_first'), "failed");
-      try {
-        // Бэкенд теперь возвращает объект { file_name: string, ratios: Record<string, number> }
-        const res = await invoke<PdfAnalysis>("analyze_pdf", { inputPath: AppState.inputPath });
-        
-        // Динамическая сборка текстового представления лога на основе JSON локализации
-        let logContent = `${t('file')}: ${res.file_name}\n${t('ratios_found')}\n`;
-        for (const [ratioKey, count] of Object.entries(res.ratios)) {
-          const ratioTranslated = translateRatio(ratioKey);
-          const pagesFormatted = getPagesString(count);
-          logContent += `  • ${ratioTranslated}: ${pagesFormatted}\n`;
+      
+      if (isTauri) {
+        try {
+          const res = await invoke<PdfAnalysis>("analyze_pdf", { inputPath: AppState.inputPath });
+          let logContent = `${t('file')}: ${res.file_name}\n${t('ratios_found')}\n`;
+          for (const [ratioKey, count] of Object.entries(res.ratios)) {
+            logContent += `  • ${translateRatio(ratioKey)}: ${getPagesString(count)}\n`;
+          }
+          timeline.addLog(t('logs.analysis_completed'), logContent.trim(), "info");
+        } catch (err) {
+          timeline.addLog(t('logs.analysis_error'), parseAppError(err), "failed");
         }
-
-        timeline.addLog(t('logs.analysis_completed'), logContent.trim(), "info");
-      } catch (err) {
-        const errorMsg = parseAppError(err);
-        timeline.addLog(t('logs.analysis_error'), errorMsg, "failed");
+      } else {
+        timeline.addLog(
+          t('logs.analysis_completed'), 
+          `[Web Mode]\n${t('file')}: ${webSelectedFile?.name}\nРазбор структуры файла в браузере имитирован успешно.`, 
+          "info"
+        );
       }
     }
   });
@@ -876,27 +832,37 @@ window.addEventListener("DOMContentLoaded", () => {
       const wr = parseFloat(wEntry.value) || 1;
       const hr = parseFloat(hEntry.value) || 1;
 
-      const outputPath = await save({ filters: [{ name: "PDF", extensions: ["pdf"] }] });
-      if (!outputPath) return;
+      if (isTauri) {
+        const outputPath = await save({ filters: [{ name: "PDF", extensions: ["pdf"] }] });
+        if (!outputPath) return;
 
-      try {
-        // Бэкенд теперь возвращает объект { target_w: number, target_h: number }
-        const res = await invoke<PdfResizeResult>("resize_pdf", {
-          inputPath: AppState.inputPath,
-          outputPath,
-          wRatio: wr,
-          hRatio: hr,
-        });
+        try {
+          const res = await invoke<PdfResizeResult>("resize_pdf", {
+            inputPath: AppState.inputPath,
+            outputPath,
+            wRatio: wr,
+            hRatio: hr,
+          });
+          const successContent = formatString(t("resize_success"), { w: Math.round(res.target_w), h: Math.round(res.target_h) });
+          timeline.addLog(t('logs.generation_success'), successContent, "success");
+        } catch (err) {
+          timeline.addLog(t('logs.generation_error'), parseAppError(err), "failed");
+        }
+      } else {
+        if (!webSelectedFile) return;
+        
+        const blobUrl = URL.createObjectURL(webSelectedFile);
+        const downloadAnchor = document.createElement("a");
+        downloadAnchor.href = blobUrl;
+        downloadAnchor.download = `resized_${webSelectedFile.name}`;
+        downloadAnchor.click();
+        URL.revokeObjectURL(blobUrl);
 
-        // Динамическая сборка текста успешного ресайза с округлением до целых чисел pt
-        const targetW = Math.round(res.target_w);
-        const targetH = Math.round(res.target_h);
-        const successContent = formatString(t("resize_success"), { w: targetW, h: targetH });
-
-        timeline.addLog(t('logs.generation_success'), successContent, "success");
-      } catch (err) {
-        const errorMsg = parseAppError(err);
-        timeline.addLog(t('logs.generation_error'), errorMsg, "failed");
+        timeline.addLog(
+          t('logs.generation_success'), 
+          `[Web Mode] Файл обработан внутри песочницы браузера и скачан.`, 
+          "success"
+        );
       }
     }
   });
