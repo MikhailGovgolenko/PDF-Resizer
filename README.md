@@ -1,7 +1,7 @@
 
-# PDF Converter
+<h1 align="center">PDF Converter</h1>
 
-https://mikhailgovgolenko.github.io/PDF-Converter/
+<p align="center"> https://mikhailgovgolenko.github.io/PDF-Converter/</p>
 
 A portable utility to analyze page aspect ratios and resize PDF documents without quality loss.
 
@@ -18,4 +18,4 @@ A portable utility to analyze page aspect ratios and resize PDF documents withou
 
 ---
 
-*This application is fully standalone, requires no installation, and leaves no traces on your system.*
+This application is fully standalone, requires no installation, and leaves no traces on your system.
