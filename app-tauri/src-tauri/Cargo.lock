@@ -2975,6 +2975,7 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-opener",
  "window-vibrancy 0.5.3",
+ "windows",
  "winreg 0.52.0",
 ]
 

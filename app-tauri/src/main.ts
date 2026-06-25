@@ -250,9 +250,18 @@ window.addEventListener("DOMContentLoaded", () => {
     const initThemeIconListener = () => {
       const themeQuery = window.matchMedia('(prefers-color-scheme: dark)');
       const updateIcon = async (isDark: boolean) => {
-        try { await invoke("set_theme_icon", { isDark }); } catch (err) { console.error(err); }
+        try { 
+          await invoke("set_theme_icon", { isDark }); 
+        } catch (err) { 
+          console.error("Error setting theme icon:", err); 
+        }
       };
-      updateIcon(themeQuery.matches);
+      
+      // Задержка для гарантии инициализации окна
+      setTimeout(() => {
+        updateIcon(themeQuery.matches);
+      }, 100);
+      
       themeQuery.addEventListener('change', (e) => updateIcon(e.matches));
     };
     initThemeIconListener();
@@ -617,10 +626,11 @@ window.addEventListener("DOMContentLoaded", () => {
          touch-action: manipulation;
        }
        .win-combobox-item:hover {
-         background-color: var(--winui-btn-hover);
+         background-color: rgba(0, 0, 0, 0.04);
+         color: var(--winui-text-main);
        }
        .win-combobox-item.selected {
-         background-color: var(--winui-btn-active);
+         background-color: rgba(0, 0, 0, 0.04);
          font-weight: 400;
        }
        .win-combobox-item.selected::before {
@@ -634,7 +644,16 @@ window.addEventListener("DOMContentLoaded", () => {
          background-color: var(--winui-accent);
          border-radius: 2px;
        }
-       
+
+       @media (prefers-color-scheme: dark) {
+         .win-combobox-item:hover {
+           background-color: rgba(255, 255, 255, 0.04);
+         }
+         .win-combobox-item.selected {
+           background-color: rgba(255, 255, 255, 0.04);
+         }
+       }
+        
     .log-container { flex: 1; display: flex; flex-direction: column; min-height: 0; }
     .log-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; padding: 0 2px; }
     .log-header label { font-size: 13px; color: var(--winui-text-main); }
@@ -797,6 +816,9 @@ window.addEventListener("DOMContentLoaded", () => {
   gridRow.appendChild(hGroup);
   gridCard.appendChild(gridRow);
 
+  // Флаг, показывающий, был ли выбор пресета инициирован пользователем (trusted event)
+  let lastPresetChangeManual = false;
+
   function toggleFlyout(show: boolean) {
     if (show) {
       comboBtn.classList.add("open");
@@ -822,27 +844,62 @@ window.addEventListener("DOMContentLoaded", () => {
   comboFlyout.querySelectorAll(".win-combobox-item").forEach((item) => {
     item.addEventListener("click", (e) => {
       const target = e.currentTarget as HTMLElement;
+      // Определяем, был ли клик инициирован пользователем (trusted event)
+      const isManual = (e instanceof MouseEvent) ? e.isTrusted : false;
+      // Помечаем, что последующая смена пресета была ручной — это поможет
+      // обработчику onChange отличить ручной выбор от программного.
+      lastPresetChangeManual = isManual;
+
       comboFlyout.querySelectorAll(".win-combobox-item").forEach(el => el.classList.remove("selected"));
       target.classList.add("selected");
 
       comboBtn.querySelector("span")!.textContent = target.textContent;
-      AppState.activePreset = target.getAttribute("data-value") || "a-series";
+
+      const value = target.getAttribute("data-value") || "a-series";
+      if (value === "custom" && isManual) {
+        // Если пользователь явно выбрал "custom", очищаем поля ввода.
+        wEntry.value = "";
+        hEntry.value = "";
+        wEntry.disabled = false; hEntry.disabled = false;
+      }
+
+      AppState.activePreset = value;
       toggleFlyout(false);
+
+      // Сбрасываем флаг ASAP, чтобы он не влиял на последующие программные изменения.
+      setTimeout(() => { lastPresetChangeManual = false; }, 0);
     });
   });
 
   AppState.onChange("activePreset", (preset) => {
     if (preset === "a-series") {
-      wEntry.value = "1"; hEntry.value = "1.414"; wEntry.disabled = true; hEntry.disabled = true;
+      wEntry.value = "1"; hEntry.value = "1.414"; wEntry.disabled = false; hEntry.disabled = false;
     } else if (preset === "2-3") {
-      wEntry.value = "2"; hEntry.value = "3"; wEntry.disabled = true; hEntry.disabled = true;
+      wEntry.value = "2"; hEntry.value = "3"; wEntry.disabled = false; hEntry.disabled = false;
     } else if (preset === "3-4") {
-      wEntry.value = "3"; hEntry.value = "4"; wEntry.disabled = true; hEntry.disabled = true;
+      wEntry.value = "3"; hEntry.value = "4"; wEntry.disabled = false; hEntry.disabled = false;
     } else if (preset === "custom") {
-      wEntry.value = ""; hEntry.value = ""; wEntry.disabled = false; hEntry.disabled = false;
+      // Разблокируем поля. Если переход был программный (не ручной) и оба поля пусты —
+      // устанавливаем значения по умолчанию. Если же выбор сделал пользователь вручную,
+      // поля уже были очищены в обработчике клика, и дефолты не ставим.
+      wEntry.disabled = false; hEntry.disabled = false;
+      if (!lastPresetChangeManual && wEntry.value === "" && hEntry.value === "") {
+        wEntry.value = "1"; hEntry.value = "1.414";
+      }
       wEntry.focus();
     }
   });
+
+  // Автоматический переход на "custom" при изменении полей ввода
+  const selectCustomPreset = () => {
+    if (AppState.activePreset !== "custom") {
+      const customItem = comboFlyout.querySelector('[data-value="custom"]') as HTMLElement;
+      if (customItem) customItem.click();
+    }
+  };
+
+  wEntry.addEventListener("input", selectCustomPreset);
+  hEntry.addEventListener("input", selectCustomPreset);
 
   // ——————————————————————————————————————————
   // LAYER 3: Action Buttons & Timeline (Гибридные команды)

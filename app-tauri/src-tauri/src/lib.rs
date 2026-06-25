@@ -4,6 +4,12 @@ use std::collections::HashMap;
 use std::path::Path;
 use tauri::Manager;
 
+#[cfg(target_os = "windows")]
+use std::sync::Mutex;
+
+#[cfg(target_os = "windows")]
+static THEME_ICON_HANDLES: Mutex<Option<(isize, isize)>> = Mutex::new(None);
+
 #[derive(Debug, Serialize)]
 #[serde(tag = "type")]
 enum AppError {
@@ -128,8 +134,7 @@ fn resize_pdf(
         return Err(AppError::InvalidRatio.into());
     }
 
-    let mut doc =
-        Document::load(&input_path).map_err(|_| String::from(AppError::PdfLoadFailed))?;
+    let mut doc = Document::load(&input_path).map_err(|_| String::from(AppError::PdfLoadFailed))?;
 
     let target_w = 595.0f32;
     let target_h = target_w * (h_ratio as f32) / (w_ratio as f32);
@@ -191,10 +196,7 @@ fn resize_pdf(
                     let tx = offset_x - (orig_bottom * scale);
                     let ty = offset_y + (current_width * scale) + (orig_left * scale);
 
-                    format!(
-                        "q\n0 {:.4} {:.4} 0 {:.4} {:.4} cm\n",
-                        -scale, scale, tx, ty
-                    )
+                    format!("q\n0 {:.4} {:.4} 0 {:.4} {:.4} cm\n", -scale, scale, tx, ty)
                 }
                 180 => {
                     let fit_x = target_w / current_width;
@@ -229,10 +231,7 @@ fn resize_pdf(
                     let tx = offset_x + (current_height * scale) + (orig_bottom * scale);
                     let ty = offset_y - (orig_left * scale);
 
-                    format!(
-                        "q\n0 {:.4} {:.4} 0 {:.4} {:.4} cm\n",
-                        scale, -scale, tx, ty
-                    )
+                    format!("q\n0 {:.4} {:.4} 0 {:.4} {:.4} cm\n", scale, -scale, tx, ty)
                 }
                 _ => {
                     let fit_x = target_w / current_width;
@@ -248,10 +247,7 @@ fn resize_pdf(
                     let tx = offset_x - (orig_left * scale);
                     let ty = offset_y - (orig_bottom * scale);
 
-                    format!(
-                        "q\n{:.4} 0 0 {:.4} {:.4} {:.4} cm\n",
-                        scale, scale, tx, ty
-                    )
+                    format!("q\n{:.4} 0 0 {:.4} {:.4} {:.4} cm\n", scale, scale, tx, ty)
                 }
             };
 
@@ -317,15 +313,12 @@ fn resize_pdf(
     doc.save(&output_path)
         .map_err(|_| String::from(AppError::IoError))?;
 
-    Ok(PdfResizeResult {
-        target_w,
-        target_h,
-    })
+    Ok(PdfResizeResult { target_w, target_h })
 }
 
 // 3. SET THEME ICON COMMAND
 #[tauri::command]
-fn set_theme_icon(window: tauri::Window, is_dark: bool) -> Result<(), String> {
+fn set_theme_icon(window: tauri::WebviewWindow, is_dark: bool) -> Result<(), String> {
     let icon_bytes: &[u8] = if is_dark {
         include_bytes!("../../assets/icon-dark.png")
     } else {
@@ -335,9 +328,125 @@ fn set_theme_icon(window: tauri::Window, is_dark: bool) -> Result<(), String> {
     let icon = tauri::image::Image::from_bytes(icon_bytes)
         .map_err(|e| format!("Failed to parse icon bytes: {}", e))?;
 
+    #[cfg(target_os = "windows")]
+    set_windows_taskbar_icon(&window, icon.rgba(), icon.width(), icon.height())?;
+
     window
         .set_icon(icon)
         .map_err(|e| format!("Failed to set window icon: {}", e))?;
+
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn set_windows_taskbar_icon(
+    window: &tauri::WebviewWindow,
+    rgba: &[u8],
+    width: u32,
+    height: u32,
+) -> Result<(), String> {
+    use std::ffi::c_void;
+    use windows::core::BOOL;
+    use windows::Win32::Foundation::{LPARAM, WPARAM};
+    use windows::Win32::Graphics::Gdi::{CreateBitmap, DeleteObject};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        CreateIconIndirect, DestroyIcon, SendMessageW, SetWindowPos, ICONINFO, 
+        ICON_BIG, ICON_SMALL, ICON_SMALL2, WM_SETICON, SWP_FRAMECHANGED, 
+        SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SWP_NOACTIVATE,
+    };
+
+    if rgba.len() != (width as usize) * (height as usize) * 4 {
+        return Err("Invalid icon buffer size".to_string());
+    }
+
+    let hwnd = window
+        .hwnd()
+        .map_err(|e| format!("Failed to get window handle: {}", e))?;
+
+    // Конвертируем из RGBA (Tauri) в BGRA (Win32)
+    let mut bgra = Vec::with_capacity(rgba.len());
+    for pixel in rgba.chunks_exact(4) {
+        bgra.push(pixel[2]);
+        bgra.push(pixel[1]);
+        bgra.push(pixel[0]);
+        bgra.push(pixel[3]);
+    }
+
+    let icon_info = unsafe {
+        let color_bitmap = CreateBitmap(
+            width as i32,
+            height as i32,
+            1,
+            32,
+            Some(bgra.as_ptr() as *const c_void),
+        );
+        if color_bitmap.is_invalid() {
+            return Err("Failed to create color bitmap for taskbar icon".to_string());
+        }
+
+        let mask_bitmap = CreateBitmap(width as i32, height as i32, 1, 1, None);
+        if mask_bitmap.is_invalid() {
+            let _ = DeleteObject(color_bitmap.into());
+            return Err("Failed to create mask bitmap for taskbar icon".to_string());
+        }
+
+        let icon_info = ICONINFO {
+            fIcon: BOOL(1),
+            xHotspot: 0,
+            yHotspot: 0,
+            hbmMask: mask_bitmap,
+            hbmColor: color_bitmap,
+        };
+
+        let big_icon = CreateIconIndirect(&icon_info)
+            .map_err(|e| format!("Failed to create big taskbar icon: {}", e))?;
+        let small_icon = CreateIconIndirect(&icon_info)
+            .map_err(|e| format!("Failed to create small taskbar icon: {}", e))?;
+
+        let _ = DeleteObject(color_bitmap.into());
+        let _ = DeleteObject(mask_bitmap.into());
+
+        (big_icon, small_icon)
+    };
+
+    unsafe {
+        // Отправляем дескрипторы иконок окну
+        SendMessageW(
+            hwnd,
+            WM_SETICON,
+            Some(WPARAM(ICON_BIG as usize)),
+            Some(LPARAM(icon_info.0 .0 as isize)),
+        );
+        SendMessageW(
+            hwnd,
+            WM_SETICON,
+            Some(WPARAM(ICON_SMALL as usize)),
+            Some(LPARAM(icon_info.1 .0 as isize)),
+        );
+        SendMessageW(
+            hwnd,
+            WM_SETICON,
+            Some(WPARAM(ICON_SMALL2 as usize)),
+            Some(LPARAM(icon_info.1 .0 as isize)),
+        );
+
+        // Хак для принудительного обновления фрейма окна и панели задач Shell
+        let flags = SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE;
+        let _ = SetWindowPos(hwnd, None, 0, 0, 0, 0, flags);
+    }
+
+    // Управляем жизненным циклом старых дескрипторов, чтобы избежать утечек памяти
+    let mut handles = THEME_ICON_HANDLES
+        .lock()
+        .map_err(|_| "Failed to lock taskbar icon handles".to_string())?;
+    if let Some((old_big, old_small)) =
+        handles.replace((icon_info.0 .0 as isize, icon_info.1 .0 as isize))
+    {
+        unsafe {
+            let _ = DestroyIcon(windows::Win32::UI::WindowsAndMessaging::HICON(old_big as _));
+            let _ = DestroyIcon(windows::Win32::UI::WindowsAndMessaging::HICON(old_small as _));
+        }
+    }
 
     Ok(())
 }
@@ -364,6 +473,27 @@ fn get_accent_color() -> Result<String, String> {
     Ok("#0078D4".to_string())
 }
 
+// 5. CHECK WINDOWS DARK MODE
+#[cfg(target_os = "windows")]
+fn windows_light_dark_mode_is_dark() -> Result<bool, String> {
+    use winreg::enums::HKEY_CURRENT_USER;
+    use winreg::RegKey;
+
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    if let Ok(personalize_key) = hkcu.open_subkey("Software\\Microsoft\\Windows\\CurrentVersion\\Personalize") {
+        if let Ok(app_theme) = personalize_key.get_value::<u32, _>("AppsUseLightTheme") {
+            return Ok(app_theme == 0);
+        }
+    }
+    
+    Ok(false)
+}
+
+#[cfg(not(target_os = "windows"))]
+fn windows_light_dark_mode_is_dark() -> Result<bool, String> {
+    Ok(false)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -380,6 +510,11 @@ pub fn run() {
                     let window_clone = window.clone();
                     let _ = window.run_on_main_thread(move || {
                         let _ = apply_mica(&window_clone, None);
+                        
+                        // Инициализируем иконку при запуске
+                        let is_dark = windows_light_dark_mode_is_dark().unwrap_or(false);
+                        let _ = set_theme_icon(window_clone.clone(), is_dark);
+                        
                         let _ = window_clone.show();
                     });
                 }
