@@ -359,7 +359,7 @@ window.addEventListener("DOMContentLoaded", () => {
       .log-viewport { background: rgba(0, 0, 0, 0.3) !important; }
     }
 
-    html, body, #app { margin: 0; padding: 0; background-color: var(--winui-window-bg) !important; width: 100%; height: var(--app-viewport-height, 100dvh); min-height: 0; overflow: hidden;${!isTauri ? " touch-action: manipulation;" : ""} }
+    html, body, #app { margin: 0; padding: 0; background-color: var(--winui-window-bg) !important; width: 100%; height: var(--app-viewport-height, 100dvh); min-height: 0; ${!isTauri ? " touch-action: manipulation;" : ""} }
     * { box-sizing: border-box; font-family: var(--font-family); -webkit-font-smoothing: antialiased;${blockTextSelection ? " user-select: none !important; -webkit-user-select: none !important; -webkit-touch-callout: none;" : ""} }
     ${blockTextSelection ? `
     .win-input {
@@ -377,7 +377,7 @@ window.addEventListener("DOMContentLoaded", () => {
     }
     `}
     
-    .app-container { padding: calc(24px + env(safe-area-inset-top, 0px)) calc(24px + env(safe-area-inset-right, 0px)) calc(24px + env(safe-area-inset-bottom, 0px)) calc(24px + env(safe-area-inset-left, 0px)); height: var(--app-viewport-height, 100dvh); min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 16px; background: transparent; max-width: calc(800px + env(safe-area-inset-left, 0px) + env(safe-area-inset-right, 0px)); margin: 0 auto; width: 100%; }
+    .app-container { padding: calc(24px + env(safe-area-inset-top, 0px)) calc(24px + env(safe-area-inset-right, 0px)) calc(24px + env(safe-area-inset-bottom, 0px)) calc(24px + env(safe-area-inset-left, 0px)); height: var(--app-viewport-height, 100dvh); min-height: 0;; display: flex; flex-direction: column; gap: 16px; background: transparent; max-width: calc(800px + env(safe-area-inset-left, 0px) + env(safe-area-inset-right, 0px)); margin: 0 auto; width: 100%; }
     .win-card { background: var(--winui-card); border: 1px solid var(--winui-card-border); border-radius: 8px; padding: 16px; box-shadow: var(--winui-card-shadow); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
     .file-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 24px !important; }
     .controls-card { position: relative; z-index: 20; overflow: visible; }
@@ -654,7 +654,7 @@ window.addEventListener("DOMContentLoaded", () => {
          }
        }
         
-    .log-container { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+    .log-container { flex: 1; display: flex; flex-direction: column; min-height: 300px; }
     .log-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; padding: 0 2px; }
     .log-header label { font-size: 13px; color: var(--winui-text-main); }
     .log-viewport { flex: 1; min-height: 0; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; background: rgba(255, 255, 255, 0.4); border: 1px solid var(--winui-card-border); border-radius: 6px; padding: 12px; overflow-y: auto; font-family: monospace; font-size: 12px; line-height: 1.5; color: var(--winui-text-main); }
