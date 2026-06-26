@@ -1,6 +1,6 @@
 {
   "ui": {
-    "target_document": "Целевой документ",
+    "target_document": "Выбранный документ",
     "no_file_selected": "Файл не выбран",
     "browse": "Обзор",
     "preset_label": "Шаблоны",

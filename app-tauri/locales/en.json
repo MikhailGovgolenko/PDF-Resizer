@@ -1,6 +1,6 @@
 {
   "ui": {
-    "target_document": "Target Document",
+    "target_document": "Selected Document",
     "no_file_selected": "No file selected",
     "browse": "Browse",
     "preset_label": "Templates",
