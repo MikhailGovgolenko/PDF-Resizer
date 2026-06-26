@@ -5,7 +5,8 @@
 
 A portable utility to analyze page aspect ratios and resize PDF documents without quality loss.
 
-<img width="1536" height="863" alt="image" src="https://github.com/user-attachments/assets/208f46e2-8415-488f-a6a2-92da9143edb8" />
+<img width="1536" height="863" alt="image" src="https://github.com/user-attachments/assets/9d790293-56fb-46d9-8f0a-e7da2aaeb930" />
+
 
 
 
