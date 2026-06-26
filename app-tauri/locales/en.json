@@ -1,15 +1,15 @@
 {
   "ui": {
-    "target_document": "Selected document",
-    "no_file_selected": "No file selected",
+    "target_document": "Selected Document",
+    "no_file_selected": "No File Selected",
     "browse": "Browse",
     "preset_label": "Templates",
-    "width_label": "Width ratio",
-    "height_label": "Height ratio",
+    "width_label": "Width Ratio",
+    "height_label": "Height Ratio",
     "analyze_btn": "Analyze",
     "generate_btn": "Download PDF",
     "timeline_label": "Process Timeline",
-    "clear_history": "Clear history",
+    "clear_history": "Clear History",
     "ready_placeholder": "Ready to process documents..."
   },
   "presets": {
@@ -35,7 +35,7 @@
     "IoError": "I/O error occurred while saving the file. Check write permissions.",
     "PageStructureError": "Error reading the internal structure of document pages.",
     "ModificationError": "Failed to modify the PDF page structure.",
-    "UnknownError": "Unknown backend error"
+    "UnknownError": "Unknown backend error."
   },
   "ratios": {
     "a-series": "A-Series",
