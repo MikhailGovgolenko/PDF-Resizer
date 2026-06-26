@@ -360,7 +360,7 @@ window.addEventListener("DOMContentLoaded", () => {
     }
 
     html, body, #app { margin: 0; padding: 0; background-color: var(--winui-window-bg) !important; width: 100%; height: var(--app-viewport-height, 100dvh); min-height: 0; ${!isTauri ? " touch-action: manipulation;" : ""} }
-    * { box-sizing: border-box; font-family: var(--font-family); -webkit-font-smoothing: antialiased;${blockTextSelection ? " user-select: none !important; -webkit-user-select: none !important; -webkit-touch-callout: none;" : ""} }
+    * { box-sizing: border-box; font-family: var(--font-family); -webkit-font-smoothing: antialiased; -webkit-text-size-adjust: 100%; ${blockTextSelection ? " user-select: none !important; -webkit-user-select: none !important; -webkit-touch-callout: none;" : ""} }
     ${blockTextSelection ? `
     .win-input {
       user-select: text !important;
