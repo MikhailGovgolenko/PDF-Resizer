@@ -3,7 +3,7 @@
     "target_document": "Целевой документ",
     "no_file_selected": "Файл не выбран",
     "browse": "Обзор",
-    "preset_label": "Шаблон соотношения сторон",
+    "preset_label": "Шаблоны",
     "width_label": "Ширина",
     "height_label": "Высота",
     "analyze_btn": "Анализировать",
@@ -13,7 +13,7 @@
     "ready_placeholder": "Готов к обработке документов..."
   },
   "presets": {
-    "a_series": "Серия A (A4, A3...)",
+    "a_series": "Серия A",
     "two_three": "2 x 3",
     "standard": "3 x 4",
     "custom": "Пользовательский"
