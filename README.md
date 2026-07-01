@@ -15,7 +15,7 @@ A portable utility to analyze page aspect ratios and resize PDF documents withou
 1. **Run** PDF Converter.
 2. Click **Browse** and select your document.
 3. Click **Analyze** to view the current page proportions in the log window.
-4. Select your target proportions using predefined presets (A-series, 16:9, 4:3) or custom aspect ratio parameter.
+4. Select your target proportions using predefined presets (A-series, 2x3, 3x4) or custom aspect ratio parameter.
 5. Click **Download PDF** and choose a saving destination for your new file.
 
 ---
