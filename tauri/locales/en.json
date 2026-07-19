@@ -14,8 +14,11 @@
   },
   "presets": {
     "a_series": "A-Series",
+    "letter": "US Letter",
+    "legal": "US Legal",
+    "sixteen_nine": "16 x 9",
+    "four_three": "4 x 3",
     "two_three": "2 x 3",
-    "standard": "3 x 4",
     "custom": "Custom"
   },
   "logs": {
@@ -25,7 +28,10 @@
     "analysis_completed": "Analysis Completed",
     "analysis_error": "Analysis Error",
     "generation_success": "Generation Successful",
-    "generation_error": "Generation Error"
+    "generation_error": "Generation Error",
+    "suggestion_title": "Recommendation",
+    "suggestion_preset": "Most pages match the \"{{preset}}\" preset. It has been selected automatically.",
+    "suggestion_custom": "Most pages have a format of {{w_raw}}x{{h_raw}} pt.\nAspect ratio automatically set to: {{w}} : {{h}}"
   },
   "errors": {
     "EmptyPath": "File path cannot be empty.",
@@ -39,8 +45,11 @@
   },
   "ratios": {
     "a-series": "A-Series",
+    "letter": "US Letter",
+    "legal": "US Legal",
+    "16-9": "16 x 9",
+    "4-3": "4 x 3",
     "2-3": "2 x 3",
-    "3-4": "3 x 4",
     "custom": "{{w}} x {{h}}"
   },
   "file": "File",

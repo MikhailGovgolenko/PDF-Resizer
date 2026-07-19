@@ -14,8 +14,11 @@
   },
   "presets": {
     "a_series": "Серия A",
+    "letter": "US Letter",
+    "legal": "US Legal",
+    "sixteen_nine": "16 x 9",
+    "four_three": "4 x 3",
     "two_three": "2 x 3",
-    "standard": "3 x 4",
     "custom": "Другой"
   },
   "logs": {
@@ -25,7 +28,10 @@
     "analysis_completed": "Анализ завершен",
     "analysis_error": "Ошибка анализа",
     "generation_success": "Успешная генерация",
-    "generation_error": "Ошибка генерации"
+    "generation_error": "Ошибка генерации",
+    "suggestion_title": "Рекомендация",
+    "suggestion_preset": "Большинство страниц соответствуют пресету \"{{preset}}\". Он выбран автоматически.",
+    "suggestion_custom": "Большинство страниц имеют формат {{w_raw}}x{{h_raw}} pt.\nАвтоматически установлены пропорции: {{w}} : {{h}}"
   },
   "errors": {
     "EmptyPath": "Путь к файлу не может быть пустым.",
@@ -39,8 +45,11 @@
   },
   "ratios": {
     "a-series": "Серия A",
+    "letter": "US Letter",
+    "legal": "US Legal",
+    "16-9": "16 x 9",
+    "4-3": "4 x 3",
     "2-3": "2 x 3",
-    "3-4": "3 x 4",
     "custom": "{{w}} x {{h}}"
   },
   "file": "Файл",

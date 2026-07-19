@@ -42,26 +42,38 @@ pub struct PdfResizeResult {
 }
 
 fn get_ratio_class(w: f32, h: f32) -> String {
-    if h == 0.0 {
+    if h == 0.0 || w == 0.0 {
         return "invalid".to_string();
     }
-    let r = w / h;
-    if (r - 1.4142).abs() < 0.03 {
+
+    // Всегда делим большую сторону на меньшую, чтобы свести проверку
+    // и портретной, и альбомной ориентации к единому коэффициенту (> 1.0)
+    let long_side = w.max(h);
+    let short_side = w.min(h);
+    let r = long_side / short_side;
+
+    let epsilon = 0.02; // Комфортная погрешность для полиграфии
+
+    if (r - 1.4142).abs() < epsilon {
         return "a_series".to_string();
     }
-    if (r - 1.3333).abs() < 0.03 {
+    if (r - 1.3333).abs() < epsilon {
         return "4_3".to_string();
     }
-    if (r - 1.7777).abs() < 0.03 {
+    if (r - 1.7777).abs() < epsilon {
         return "16_9".to_string();
     }
-    if (r - 0.7500).abs() < 0.03 {
-        return "3_4".to_string();
+    if (r - 1.2941).abs() < epsilon { // US Letter (11 / 8.5)
+        return "letter".to_string();
     }
-    if (r - 0.6666).abs() < 0.03 {
+    if (r - 1.6470).abs() < epsilon { // US Legal (14 / 8.5)
+        return "legal".to_string();
+    }
+    if (r - 1.5000).abs() < epsilon { // 2:3 пропорция
         return "2_3".to_string();
     }
-    // Для нестандартных соотношений кодируем размеры прямо в ключ
+
+    // Для действительно кастомных размеров возвращаем точные исходные пропорции
     format!("custom:{:.2}:{:.2}", w, h)
 }
 
