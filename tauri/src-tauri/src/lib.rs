@@ -345,14 +345,136 @@ fn set_theme_icon(window: tauri::WebviewWindow, is_dark: bool) -> Result<(), Str
     let icon = tauri::image::Image::from_bytes(icon_bytes)
         .map_err(|e| format!("Failed to parse icon bytes: {}", e))?;
 
+    window
+        .set_icon(icon.clone())
+        .map_err(|e| format!("Failed to set window icon: {}", e))?;
+
     #[cfg(target_os = "windows")]
     set_windows_taskbar_icon(&window, icon.rgba(), icon.width(), icon.height())?;
 
-    window
-        .set_icon(icon)
-        .map_err(|e| format!("Failed to set window icon: {}", e))?;
-
     Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn resize_rgba(rgba: &[u8], width: u32, height: u32, new_size: u32) -> Result<Vec<u8>, String> {
+    use image::{imageops::FilterType, RgbaImage};
+
+    if width == new_size && height == new_size {
+        return Ok(rgba.to_vec());
+    }
+
+    let img = RgbaImage::from_raw(width, height, rgba.to_vec())
+        .ok_or_else(|| "Invalid RGBA buffer for icon resize".to_string())?;
+    let resized = image::imageops::resize(&img, new_size, new_size, FilterType::Lanczos3);
+    Ok(resized.into_raw())
+}
+
+/// 32-bpp HICON with a real alpha channel (CreateDIBSection + BITMAPV5HEADER).
+/// CreateBitmap / naive CreateIcon strip or mis-handle alpha and destroy quality.
+#[cfg(target_os = "windows")]
+fn create_hicon_from_rgba(
+    rgba: &[u8],
+    width: u32,
+    height: u32,
+) -> Result<windows::Win32::UI::WindowsAndMessaging::HICON, String> {
+    use std::ffi::c_void;
+    use std::mem::{size_of, zeroed};
+    use std::ptr;
+    use windows::core::BOOL;
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::Graphics::Gdi::{
+        CreateBitmap, CreateDIBSection, DeleteObject, GetDC, ReleaseDC, BITMAPINFO, BITMAPV5HEADER,
+        BI_BITFIELDS, DIB_RGB_COLORS, HBITMAP,
+    };
+    use windows::Win32::UI::WindowsAndMessaging::{CreateIconIndirect, ICONINFO};
+
+    let pixel_count = (width as usize)
+        .checked_mul(height as usize)
+        .ok_or_else(|| "Icon dimensions overflow".to_string())?;
+    if rgba.len() != pixel_count * 4 {
+        return Err("Invalid icon buffer size".to_string());
+    }
+
+    let mut bgra = Vec::with_capacity(rgba.len());
+    for pixel in rgba.chunks_exact(4) {
+        bgra.push(pixel[2]);
+        bgra.push(pixel[1]);
+        bgra.push(pixel[0]);
+        bgra.push(pixel[3]);
+    }
+
+    unsafe {
+        let mut bmi: BITMAPV5HEADER = zeroed();
+        bmi.bV5Size = size_of::<BITMAPV5HEADER>() as u32;
+        bmi.bV5Width = width as i32;
+        bmi.bV5Height = -(height as i32); // top-down
+        bmi.bV5Planes = 1;
+        bmi.bV5BitCount = 32;
+        bmi.bV5Compression = BI_BITFIELDS;
+        bmi.bV5RedMask = 0x00FF_0000;
+        bmi.bV5GreenMask = 0x0000_FF00;
+        bmi.bV5BlueMask = 0x0000_00FF;
+        bmi.bV5AlphaMask = 0xFF00_0000;
+
+        let hdc = GetDC(Some(HWND::default()));
+        if hdc.is_invalid() {
+            return Err("Failed to get DC for icon".to_string());
+        }
+
+        let mut bits: *mut c_void = ptr::null_mut();
+        let color_bitmap = CreateDIBSection(
+            Some(hdc),
+            &bmi as *const BITMAPV5HEADER as *const BITMAPINFO,
+            DIB_RGB_COLORS,
+            &mut bits,
+            None,
+            0,
+        )
+        .map_err(|e| {
+            let _ = ReleaseDC(Some(HWND::default()), hdc);
+            format!("Failed to create DIB section: {}", e)
+        })?;
+        let _ = ReleaseDC(Some(HWND::default()), hdc);
+
+        if bits.is_null() {
+            let _ = DeleteObject(color_bitmap.into());
+            return Err("CreateDIBSection returned null bits".to_string());
+        }
+        ptr::copy_nonoverlapping(bgra.as_ptr(), bits as *mut u8, bgra.len());
+
+        // For 32bpp alpha icons the mask is required but ignored when fully zeroed.
+        let mask_stride = ((width as usize + 31) / 32) * 4;
+        let mask_bits = vec![0u8; mask_stride * height as usize];
+        let mask_bitmap = CreateBitmap(
+            width as i32,
+            height as i32,
+            1,
+            1,
+            Some(mask_bits.as_ptr() as *const c_void),
+        );
+        if mask_bitmap.is_invalid() {
+            let _ = DeleteObject(color_bitmap.into());
+            return Err("Failed to create icon mask bitmap".to_string());
+        }
+
+        let icon_info = ICONINFO {
+            fIcon: BOOL(1),
+            xHotspot: 0,
+            yHotspot: 0,
+            hbmMask: mask_bitmap,
+            hbmColor: HBITMAP(color_bitmap.0),
+        };
+
+        let icon = CreateIconIndirect(&icon_info).map_err(|e| {
+            let _ = DeleteObject(color_bitmap.into());
+            let _ = DeleteObject(mask_bitmap.into());
+            format!("Failed to create icon: {}", e)
+        })?;
+
+        let _ = DeleteObject(color_bitmap.into());
+        let _ = DeleteObject(mask_bitmap.into());
+        Ok(icon)
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -362,102 +484,50 @@ fn set_windows_taskbar_icon(
     width: u32,
     height: u32,
 ) -> Result<(), String> {
-    use std::ffi::c_void;
-    use windows::core::BOOL;
-    use windows::Win32::Foundation::{LPARAM, WPARAM};
-    use windows::Win32::Graphics::Gdi::{CreateBitmap, DeleteObject};
+    use windows::Win32::UI::HiDpi::{GetDpiForWindow, GetSystemMetricsForDpi};
     use windows::Win32::UI::WindowsAndMessaging::{
-        CreateIconIndirect, DestroyIcon, SendMessageW, SetWindowPos, ICONINFO, 
-        ICON_BIG, ICON_SMALL, ICON_SMALL2, WM_SETICON, SWP_FRAMECHANGED, 
-        SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SWP_NOACTIVATE,
+        DestroyIcon, GetAncestor, GA_ROOT, SM_CXICON, SM_CXSMICON, SetWindowPos, SWP_FRAMECHANGED,
+        SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
     };
 
     if rgba.len() != (width as usize) * (height as usize) * 4 {
         return Err("Invalid icon buffer size".to_string());
     }
 
-    let hwnd = window
+    let webview_hwnd = window
         .hwnd()
         .map_err(|e| format!("Failed to get window handle: {}", e))?;
 
-    // Конвертируем из RGBA (Tauri) в BGRA (Win32)
-    let mut bgra = Vec::with_capacity(rgba.len());
-    for pixel in rgba.chunks_exact(4) {
-        bgra.push(pixel[2]);
-        bgra.push(pixel[1]);
-        bgra.push(pixel[0]);
-        bgra.push(pixel[3]);
-    }
+    let dpi = unsafe { GetDpiForWindow(webview_hwnd) }.max(96);
+    let big_size = unsafe { GetSystemMetricsForDpi(SM_CXICON, dpi) }.max(32) as u32;
+    let small_size = unsafe { GetSystemMetricsForDpi(SM_CXSMICON, dpi) }.max(16) as u32;
 
-    let icon_info = unsafe {
-        let color_bitmap = CreateBitmap(
-            width as i32,
-            height as i32,
-            1,
-            32,
-            Some(bgra.as_ptr() as *const c_void),
-        );
-        if color_bitmap.is_invalid() {
-            return Err("Failed to create color bitmap for taskbar icon".to_string());
-        }
+    let big_rgba = resize_rgba(rgba, width, height, big_size)?;
+    let small_rgba = resize_rgba(rgba, width, height, small_size)?;
 
-        let mask_bitmap = CreateBitmap(width as i32, height as i32, 1, 1, None);
-        if mask_bitmap.is_invalid() {
-            let _ = DeleteObject(color_bitmap.into());
-            return Err("Failed to create mask bitmap for taskbar icon".to_string());
-        }
-
-        let icon_info = ICONINFO {
-            fIcon: BOOL(1),
-            xHotspot: 0,
-            yHotspot: 0,
-            hbmMask: mask_bitmap,
-            hbmColor: color_bitmap,
-        };
-
-        let big_icon = CreateIconIndirect(&icon_info)
-            .map_err(|e| format!("Failed to create big taskbar icon: {}", e))?;
-        let small_icon = CreateIconIndirect(&icon_info)
-            .map_err(|e| format!("Failed to create small taskbar icon: {}", e))?;
-
-        let _ = DeleteObject(color_bitmap.into());
-        let _ = DeleteObject(mask_bitmap.into());
-
-        (big_icon, small_icon)
-    };
+    let big_icon = create_hicon_from_rgba(&big_rgba, big_size, big_size)?;
+    let small_icon = create_hicon_from_rgba(&small_rgba, small_size, small_size)?;
 
     unsafe {
-        // Отправляем дескрипторы иконок окну
-        SendMessageW(
-            hwnd,
-            WM_SETICON,
-            Some(WPARAM(ICON_BIG as usize)),
-            Some(LPARAM(icon_info.0 .0 as isize)),
-        );
-        SendMessageW(
-            hwnd,
-            WM_SETICON,
-            Some(WPARAM(ICON_SMALL as usize)),
-            Some(LPARAM(icon_info.1 .0 as isize)),
-        );
-        SendMessageW(
-            hwnd,
-            WM_SETICON,
-            Some(WPARAM(ICON_SMALL2 as usize)),
-            Some(LPARAM(icon_info.1 .0 as isize)),
-        );
+        let root_hwnd = GetAncestor(webview_hwnd, GA_ROOT);
+        let target_hwnds = if !root_hwnd.0.is_null() && root_hwnd != webview_hwnd {
+            vec![webview_hwnd, root_hwnd]
+        } else {
+            vec![webview_hwnd]
+        };
 
-        // Хак для принудительного обновления фрейма окна и панели задач Shell
         let flags = SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE;
-        let _ = SetWindowPos(hwnd, None, 0, 0, 0, 0, flags);
+        for hwnd in target_hwnds {
+            set_window_icons(hwnd, big_icon, small_icon);
+            let _ = SetWindowPos(hwnd, None, 0, 0, 0, 0, flags);
+        }
     }
 
-    // Управляем жизненным циклом старых дескрипторов, чтобы избежать утечек памяти
     let mut handles = THEME_ICON_HANDLES
         .lock()
         .map_err(|_| "Failed to lock taskbar icon handles".to_string())?;
     if let Some((old_big, old_small)) =
-        handles.replace((icon_info.0 .0 as isize, icon_info.1 .0 as isize))
+        handles.replace((big_icon.0 as isize, small_icon.0 as isize))
     {
         unsafe {
             let _ = DestroyIcon(windows::Win32::UI::WindowsAndMessaging::HICON(old_big as _));
@@ -466,6 +536,37 @@ fn set_windows_taskbar_icon(
     }
 
     Ok(())
+}
+
+#[cfg(target_os = "windows")]
+unsafe fn set_window_icons(
+    hwnd: windows::Win32::Foundation::HWND,
+    big_icon: windows::Win32::UI::WindowsAndMessaging::HICON,
+    small_icon: windows::Win32::UI::WindowsAndMessaging::HICON,
+) {
+    use windows::Win32::Foundation::{LPARAM, WPARAM};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        SendMessageW, ICON_BIG, ICON_SMALL, ICON_SMALL2, WM_SETICON,
+    };
+
+    SendMessageW(
+        hwnd,
+        WM_SETICON,
+        Some(WPARAM(ICON_BIG as usize)),
+        Some(LPARAM(big_icon.0 as isize)),
+    );
+    SendMessageW(
+        hwnd,
+        WM_SETICON,
+        Some(WPARAM(ICON_SMALL as usize)),
+        Some(LPARAM(small_icon.0 as isize)),
+    );
+    SendMessageW(
+        hwnd,
+        WM_SETICON,
+        Some(WPARAM(ICON_SMALL2 as usize)),
+        Some(LPARAM(small_icon.0 as isize)),
+    );
 }
 
 // 4. GET SYSTEM ACCENT COLOR COMMAND
@@ -497,18 +598,31 @@ fn windows_light_dark_mode_is_dark() -> Result<bool, String> {
     use winreg::RegKey;
 
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    if let Ok(personalize_key) = hkcu.open_subkey("Software\\Microsoft\\Windows\\CurrentVersion\\Personalize") {
-        if let Ok(app_theme) = personalize_key.get_value::<u32, _>("AppsUseLightTheme") {
-            return Ok(app_theme == 0);
-        }
+    let personalize_key =
+        hkcu.open_subkey("Software\\Microsoft\\Windows\\CurrentVersion\\Personalize")
+            .map_err(|e| format!("Failed to open Personalize key: {}", e))?;
+
+    // Taskbar follows SystemUsesLightTheme; title bar / app chrome follow AppsUseLightTheme.
+    // Prefer System so the taskbar glyph stays readable; fall back to Apps.
+    if let Ok(system_theme) = personalize_key.get_value::<u32, _>("SystemUsesLightTheme") {
+        return Ok(system_theme == 0);
     }
-    
+
+    if let Ok(app_theme) = personalize_key.get_value::<u32, _>("AppsUseLightTheme") {
+        return Ok(app_theme == 0);
+    }
+
     Ok(false)
 }
 
 #[cfg(not(target_os = "windows"))]
 fn windows_light_dark_mode_is_dark() -> Result<bool, String> {
     Ok(false)
+}
+
+#[tauri::command]
+fn windows_theme_is_dark() -> Result<bool, String> {
+    windows_light_dark_mode_is_dark()
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -548,7 +662,8 @@ pub fn run() {
             analyze_pdf,
             resize_pdf,
             set_theme_icon,
-            get_accent_color
+            get_accent_color,
+            windows_theme_is_dark
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

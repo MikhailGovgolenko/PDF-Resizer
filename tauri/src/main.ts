@@ -308,19 +308,36 @@ window.addEventListener("DOMContentLoaded", () => {
   if (isTauri) {
     const initThemeIconListener = () => {
       const themeQuery = window.matchMedia("(prefers-color-scheme: dark)");
-      const updateIcon = async (isDark: boolean) => {
+      let currentIconTheme: boolean | null = null;
+
+      // Always resolve via backend (SystemUsesLightTheme) — matchMedia is Apps theme
+      // and fighting it made the taskbar icon appear stuck.
+      const updateIcon = async (force = false) => {
         try {
-          await invoke("set_theme_icon", { isDark });
+          const resolvedIsDark = await invoke<boolean>("windows_theme_is_dark");
+
+          if (!force && currentIconTheme === resolvedIsDark) {
+            return;
+          }
+
+          await invoke("set_theme_icon", { isDark: resolvedIsDark });
+          currentIconTheme = resolvedIsDark;
         } catch (err) {
           console.error("Error setting theme icon:", err);
+          currentIconTheme = null;
         }
       };
 
       setTimeout(() => {
-        updateIcon(themeQuery.matches);
+        void updateIcon(true);
       }, 100);
 
-      themeQuery.addEventListener("change", (e) => updateIcon(e.matches));
+      themeQuery.addEventListener("change", () => void updateIcon(true));
+      window.addEventListener("focus", () => void updateIcon(true));
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) void updateIcon(true);
+      });
+      window.setInterval(() => void updateIcon(false), 1500);
     };
     initThemeIconListener();
 
@@ -421,8 +438,9 @@ window.addEventListener("DOMContentLoaded", () => {
       .log-viewport { background: rgba(0, 0, 0, 0.3) !important; }
     }
 
-    html, body, #app { margin: 0; padding: 0; background-color: var(--winui-window-bg) !important; width: 100%; height: var(--app-viewport-height, 100dvh); min-height: 0; ${!isTauri ? " touch-action: manipulation;" : ""} }
-    * { box-sizing: border-box; font-family: var(--font-family); -webkit-font-smoothing: antialiased; -webkit-text-size-adjust: 100%; ${blockTextSelection ? " user-select: none !important; -webkit-user-select: none !important; -webkit-touch-callout: none;" : ""} }
+    html, body, #app { margin: 0; padding: 0; background-color: var(--winui-window-bg) !important; width: 100%; height: var(--app-viewport-height, 100dvh); min-height: 0; }
+    * { ${blockTextSelection ? " user-select: none !important; -webkit-user-select: none !important; -webkit-touch-callout: none;" : ""} }
+    ${!isTauri ? "html, body, #app { touch-action: manipulation; }" : ""}
     ${
       blockTextSelection
         ? `
@@ -441,260 +459,7 @@ window.addEventListener("DOMContentLoaded", () => {
       -webkit-user-select: text !important;
     }
     `
-    }
-
-    .app-container { padding: calc(24px + env(safe-area-inset-top, 0px)) calc(24px + env(safe-area-inset-right, 0px)) calc(24px + env(safe-area-inset-bottom, 0px)) calc(24px + env(safe-area-inset-left, 0px)); height: var(--app-viewport-height, 100dvh); min-height: 0; display: flex; flex-direction: column; gap: 16px; background: transparent; max-width: calc(800px + env(safe-area-inset-left, 0px) + env(safe-area-inset-right, 0px)); margin: 0 auto; width: 100%; }
-    .win-card { background: var(--winui-card); border: 1px solid var(--winui-card-border); border-radius: 8px; padding: 16px; box-shadow: var(--winui-card-shadow); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
-    .file-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 24px !important; }
-    .controls-card { position: relative; z-index: 20; overflow: visible; }
-
-    .svg-icon { display: inline-flex; align-items: center; justify-content: center; color: currentColor; }
-    .btn, .btn-clear, .win-combobox-button, .win-input { outline: none !important; }
-
-    .btn {
-      height: 32px;
-      padding: 0 16px;
-      border-radius: 4px;
-      font-size: 14px;
-      font-weight: 400;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      transition: background-color var(--fluent-timing-fast), border-color var(--fluent-timing-fast);
-    }
-
-    .btn-standard {
-      background: var(--winui-btn-standard);
-      color: var(--winui-text-main);
-      border: 1px solid var(--winui-btn-border);
-      border-bottom: 1px solid var(--winui-btn-border-bottom);
-    }
-    .btn-standard:hover {
-      background: var(--winui-btn-hover);
-      border-color: var(--winui-control-border-hover) !important;
-    }
-    .btn-standard:active {
-      background: var(--winui-btn-active);
-      border-color: var(--winui-btn-border) !important;
-      border-bottom-color: var(--winui-btn-border) !important;
-    }
-
-    .btn-accent {
-      background: var(--winui-accent);
-      color: var(--winui-accent-text);
-      border: 1px solid transparent !important;
-      font-weight: 500;
-    }
-    .btn-accent:hover { background: var(--winui-accent-hover); }
-    .btn-accent:active { background: var(--winui-accent-active); }
-
-    .btn:disabled {
-      background: var(--winui-btn-standard) !important;
-      color: var(--winui-text-disabled) !important;
-      border-color: var(--winui-btn-border) !important;
-      cursor: default;
-      pointer-events: none;
-    }
-
-    .btn-clear {
-      height: 32px;
-      background: transparent;
-      border: 1px solid transparent !important;
-      color: var(--winui-text-main);
-      font-size: 13px;
-      cursor: pointer;
-      padding: 0 12px;
-      border-radius: 4px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      transition: all var(--fluent-timing-fast) ease;
-    }
-    .btn-clear:hover { background: var(--winui-btn-clear-hover); }
-    .btn-clear:active { background: var(--winui-btn-clear-active); }
-
-    .input-grid-row {
-      display: grid;
-      grid-template-columns: 1.6fr 1fr auto 1fr;
-      gap: 12px;
-      align-items: end;
-    }
-
-    .input-group {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      align-items: center;
-      text-align: center;
-    }
-    .input-group label {
-      font-size: 12px;
-      font-weight: 400;
-      color: var(--winui-text-main);
-      width: 100%;
-    }
-
-    .win-input {
-      width: 100%;
-      height: 32px;
-      background: var(--winui-control-bg);
-      border: 1px solid var(--winui-control-border);
-      border-radius: 4px;
-      padding: 0 12px;
-      font-size: 14px;
-      color: var(--winui-text-main);
-      text-align: center;
-      transition: background-color var(--fluent-timing-fast), border-color var(--fluent-timing-fast);
-      -moz-appearance: textfield;
-    }
-    .win-input::-webkit-outer-spin-button, .win-input::-webkit-inner-spin-button {
-      -webkit-appearance: none;
-      margin: 0;
-    }
-    .win-input:hover:not(:disabled) { border-color: var(--winui-control-border-hover) !important; }
-    .win-input:focus:not(:disabled) {
-      background: var(--winui-card);
-      border-color: var(--winui-control-border) !important;
-      border-bottom: 2px solid var(--winui-accent) !important;
-    }
-    .win-input:disabled {
-      background: rgba(128, 128, 128, 0.05) !important;
-      color: var(--winui-text-disabled);
-      border-color: var(--winui-btn-border) !important;
-      cursor: not-allowed;
-    }
-
-    .win-combobox-container { position: relative; width: 100%; }
-
-    .win-combobox-button {
-      width: 100%;
-      height: 32px;
-      background: var(--winui-control-bg);
-      border: 1px solid var(--winui-control-border);
-      border-bottom: 1px solid rgba(0, 0, 0, 0.45);
-      border-radius: 4px;
-      font-size: 14px;
-      color: var(--winui-text-main);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      position: relative;
-      transition: background-color var(--fluent-timing-fast), border-color var(--fluent-timing-fast);
-    }
-    .win-combobox-button svg {
-      position: absolute;
-      right: 12px;
-      top: 50%;
-      transform: translateY(-50%);
-    }
-
-    @media (prefers-color-scheme: dark) {
-      .win-combobox-button { border-bottom-color: rgba(255, 255, 255, 0.4); }
-    }
-
-    .win-combobox-button:hover {
-      border-color: var(--winui-control-border-hover) !important;
-      background: var(--winui-btn-hover);
-    }
-    .win-combobox-button.open {
-      border-color: var(--winui-control-border) !important;
-      border-bottom: 2px solid var(--winui-accent) !important;
-      background: var(--winui-card);
-    }
-
-    .input-separator-wrapper {
-      height: 32px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--winui-text-secondary);
-    }
-
-    .win-combobox-flyout {
-      position: absolute;
-      top: 36px;
-      left: 0;
-      width: 100%;
-      background: var(--winui-flyout-bg);
-      border: 1px solid var(--winui-flyout-border);
-      border-radius: 8px;
-      box-shadow: var(--winui-flyout-shadow);
-      z-index: 30;
-      padding: 4px 0;
-      display: none;
-      opacity: 0;
-      transform: translateY(-8px);
-      transition: opacity var(--fluent-timing-normal), transform var(--fluent-timing-normal);
-      pointer-events: none;
-    }
-    .win-combobox-flyout.show {
-      display: block;
-      opacity: 1;
-      transform: translateY(0);
-      pointer-events: auto;
-    }
-
-    .win-combobox-item {
-      min-height: 36px;
-      padding: 7px 16px;
-      font-size: 14px;
-      color: var(--winui-text-main);
-      cursor: pointer;
-      margin: 2px 4px;
-      border-radius: 4px;
-      position: relative;
-      transition: background-color var(--fluent-timing-fast);
-      display: flex;
-      align-items: center;
-      text-align: left;
-      touch-action: manipulation;
-    }
-    .win-combobox-item:hover { background-color: rgba(0, 0, 0, 0.04); }
-    .win-combobox-item.selected { background-color: rgba(0, 0, 0, 0.04); }
-    .win-combobox-item.selected::before {
-      content: "";
-      position: absolute;
-      left: 0;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 3px;
-      height: 16px;
-      background-color: var(--winui-accent);
-      border-radius: 2px;
-    }
-
-    @media (prefers-color-scheme: dark) {
-      .win-combobox-item:hover, .win-combobox-item.selected {
-        background-color: rgba(255, 255, 255, 0.04);
-      }
-    }
-
-    .log-container { flex: 1; display: flex; flex-direction: column; min-height: 300px; }
-    .log-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; padding: 0 2px; }
-    .log-header label { font-size: 13px; color: var(--winui-text-main); }
-    .log-viewport { flex: 1; min-height: 0; overscroll-behavior: contain; background: rgba(255, 255, 255, 0.4); border: 1px solid var(--winui-card-border); border-radius: 6px; padding: 12px; overflow-y: auto; font-family: monospace; font-size: 12px; line-height: 1.5; color: var(--winui-text-main); }
-    .log-placeholder { color: var(--winui-text-disabled) !important; text-align: center; padding-top: 10px; }
-    .log-entry { margin-bottom: 6px; padding: 8px 12px; border-radius: 4px; border: 1px solid var(--winui-card-border); background: color-mix(in oklab, var(--winui-accent) 2%, var(--winui-card)); text-align: left; }
-
-    .log-viewport::-webkit-scrollbar { width: 14px; background: transparent; }
-    .log-viewport::-webkit-scrollbar-track { background: transparent; margin: 4px 0; }
-    .log-viewport::-webkit-scrollbar-thumb {
-      background-clip: padding-box;
-      border: 4px solid transparent;
-      background-color: rgba(0, 0, 0, 0.2);
-      border-radius: 8px;
-    }
-    .log-viewport::-webkit-scrollbar-thumb:hover { background-color: rgba(0, 0, 0, 0.4); }
-
-    @media (prefers-color-scheme: dark) {
-      .log-viewport::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.2); }
-      .log-viewport::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, 0.35); }
-    }
-  `;
+    }  `;
   document.head.appendChild(styleSheet);
 
   const container = document.createElement("div");
@@ -707,18 +472,15 @@ window.addEventListener("DOMContentLoaded", () => {
   fileCard.className = "win-card file-card drop-zone";
 
   const fileInfoWrapper = document.createElement("div");
-  fileInfoWrapper.style.cssText =
-    "display: flex; align-items: center; gap: 14px; min-width: 0;";
-  fileInfoWrapper.innerHTML = `<span class="svg-icon" style="color: var(--winui-accent);">${ICONS.document}</span>`;
+  fileInfoWrapper.className = "file-info";
+  fileInfoWrapper.innerHTML = `<span class="svg-icon file-icon">${ICONS.document}</span>`;
 
   const textMetaBlock = document.createElement("div");
-  textMetaBlock.style.minWidth = "0";
-  textMetaBlock.innerHTML = `<div style="font-size: 14px; font-weight: 400; color: var(--winui-text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${t("ui.target_document")}</div>`;
+  textMetaBlock.className = "file-meta";
+  textMetaBlock.innerHTML = `<div class="file-title">${t("ui.target_document")}</div>`;
 
   const fileStatus = document.createElement("div");
   fileStatus.className = "file-status";
-  fileStatus.style.cssText =
-    "font-size: 12px; color: var(--winui-text-secondary);";
 
   textMetaBlock.appendChild(fileStatus);
   fileInfoWrapper.appendChild(textMetaBlock);
@@ -1060,7 +822,7 @@ window.addEventListener("DOMContentLoaded", () => {
   const timeline = WinLogTimeline();
 
   const actionRow = document.createElement("div");
-  actionRow.style.cssText = "display: flex; gap: 8px;";
+  actionRow.className = "action-row";
 
   const analyzeBtn = WinButton({
     text: t("ui.analyze_btn"),
@@ -1208,7 +970,7 @@ window.addEventListener("DOMContentLoaded", () => {
       }
     },
   });
-  analyzeBtn.style.flex = "1";
+  analyzeBtn.classList.add("action-button");
 
   const generateBtn = WinButton({
     text: t("ui.generate_btn"),
@@ -1278,7 +1040,7 @@ window.addEventListener("DOMContentLoaded", () => {
       }
     },
   });
-  generateBtn.style.flex = "1";
+  generateBtn.classList.add("action-button");
 
   actionRow.appendChild(analyzeBtn);
   actionRow.appendChild(generateBtn);
