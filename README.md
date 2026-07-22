@@ -1,5 +1,5 @@
 
-<h1 align="center">PDF Resixer</h1>
+<h1 align="center">PDF Resizer</h1>
 
 <p align="center"> https://mikhailgovgolenko.github.io/PDF-Resizer/</p>
 
