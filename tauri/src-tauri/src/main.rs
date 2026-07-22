@@ -3,5 +3,5 @@
 
 fn main() {
     println!("MAIN");
-    pdf_converter_rust_lib::run()
+    pdf_resizer_rust_lib::run()
 }

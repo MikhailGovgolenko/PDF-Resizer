@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "PDF Converter",
+  "productName": "PDF Resizer",
   "version": "1.4.0",
-  "identifier": "com.govgolenko.pdf-converter",
+  "identifier": "com.govgolenko.pdf-resizer",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://127.0.0.1:4321",
@@ -13,7 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
         {
-          "title": "PDF Converter",
+          "title": "PDF Resizer",
           "dragDropEnabled": true,
           "width": 550,
           "height": 670,

@@ -1,12 +1,12 @@
 {
-  "name": "tauri",
+  "name": "pdf-resizer",
   "private": true,
   "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "build:pages": "tsc && vite build --base /PDF-Converter/",
+    "build:pages": "tsc && vite build --base /PDF-Resizer/",
     "icons:apple-touch": "node scripts/pad-apple-touch-icon.mjs",
     "preview": "vite preview",
     "tauri": "tauri"
