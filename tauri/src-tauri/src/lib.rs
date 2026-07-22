@@ -486,7 +486,7 @@ fn set_windows_taskbar_icon(
 ) -> Result<(), String> {
     use windows::Win32::UI::HiDpi::{GetDpiForWindow, GetSystemMetricsForDpi};
     use windows::Win32::UI::WindowsAndMessaging::{
-        DestroyIcon, GetAncestor, GA_ROOT, SM_CXICON, SM_CXSMICON, SetWindowPos, SWP_FRAMECHANGED,
+        DestroyIcon, GetAncestor, GA_ROOT, SM_CXSMICON, SetWindowPos, SWP_FRAMECHANGED,
         SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
     };
 
@@ -499,8 +499,16 @@ fn set_windows_taskbar_icon(
         .map_err(|e| format!("Failed to get window handle: {}", e))?;
 
     let dpi = unsafe { GetDpiForWindow(webview_hwnd) }.max(96);
-    let big_size = unsafe { GetSystemMetricsForDpi(SM_CXICON, dpi) }.max(32) as u32;
-    let small_size = unsafe { GetSystemMetricsForDpi(SM_CXSMICON, dpi) }.max(16) as u32;
+    let src = width.max(height).max(1);
+
+    // ICON_BIG: keep a high-res 256px ARGB glyph so the shell can downscale cleanly on HiDPI
+    // taskbars instead of upscaling a 32px metric icon (which looks soft).
+    let big_size = 256u32.min(src);
+    // ICON_SMALL / title-bar: DPI metric, but never below 32 physical px on HiDPI.
+    let small_metric = unsafe { GetSystemMetricsForDpi(SM_CXSMICON, dpi) }.max(16) as u32;
+    let small_size = small_metric
+        .max((32u32 * dpi) / 96)
+        .min(big_size);
 
     let big_rgba = resize_rgba(rgba, width, height, big_size)?;
     let small_rgba = resize_rgba(rgba, width, height, small_size)?;
