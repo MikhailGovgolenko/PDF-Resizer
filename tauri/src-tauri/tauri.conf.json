@@ -14,6 +14,7 @@
     "windows": [
         {
           "title": "PDF Converter",
+          "dragDropEnabled": true,
           "width": 550,
           "height": 670,
           "resizable": true,

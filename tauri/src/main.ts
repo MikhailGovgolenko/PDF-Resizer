@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { analyzePdfWeb, downloadPdfBlob, resizePdfWeb } from "./pdf-web";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import "./styles.css";
 
 // Импортируем готовые JSON-файлы из вашей папки locales
 import localeRu from "../locales/ru.json";
@@ -15,6 +17,20 @@ interface PdfResizeResult {
   target_w: number;
   target_h: number;
 }
+
+async function testPdf() {
+  try {
+    const result = await invoke("analyze_pdf", {
+      inputPath: "C:\\Users\\govgo\\Desktop\\test.pdf",
+    });
+
+    console.log(result);
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+testPdf();
 
 // ==========================================
 // 0. МЕНЕДЖЕР АВТОЛОКАЛИЗАЦИИ СИСТЕМЫ
@@ -257,6 +273,19 @@ function WinLogTimeline() {
 // 3. MAIN APPLICATION INITIALIZATION
 // ==========================================
 window.addEventListener("DOMContentLoaded", () => {
+  console.log("Window initialized");
+
+  window.addEventListener(
+    "dragover",
+    (e) => {
+      e.preventDefault();
+    },
+    { capture: true },
+  );
+
+  window.addEventListener("dragenter", (e) => e.preventDefault());
+  window.addEventListener("dragleave", (e) => e.preventDefault());
+
   const appElement = document.querySelector("#app") || document.body;
   appElement.innerHTML = "";
 
@@ -672,10 +701,10 @@ window.addEventListener("DOMContentLoaded", () => {
   container.className = "app-container";
 
   // ——————————————————————————————————————————
-  // CARD 1: File Selection
+  // CARD 1: File Selection (Универсальный)
   // ——————————————————————————————————————————
   const fileCard = document.createElement("div");
-  fileCard.className = "win-card file-card";
+  fileCard.className = "win-card file-card drop-zone";
 
   const fileInfoWrapper = document.createElement("div");
   fileInfoWrapper.style.cssText =
@@ -689,46 +718,112 @@ window.addEventListener("DOMContentLoaded", () => {
   const fileStatus = document.createElement("div");
   fileStatus.className = "file-status";
   fileStatus.style.cssText =
-    "font-size: 12px; color: var(--winui-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;";
+    "font-size: 12px; color: var(--winui-text-secondary);";
 
   textMetaBlock.appendChild(fileStatus);
   fileInfoWrapper.appendChild(textMetaBlock);
   fileCard.appendChild(fileInfoWrapper);
 
-  const browseBtn = WinButton({
-    text: t("ui.browse"),
-    variant: "standard",
-    onClick: async () => {
-      if (isTauri) {
-        const selected = await open({
-          multiple: false,
-          filters: [{ name: "PDF", extensions: ["pdf"] }],
-        });
-        if (selected && typeof selected === "string") {
-          AppState.inputPath = selected;
-          timeline.addLog(t("logs.file_loaded"), selected, "info");
+  // Скрытый инпут для выбора (только для веба)
+  const hiddenInput = document.createElement("input");
+  hiddenInput.type = "file";
+  hiddenInput.accept = ".pdf";
+  hiddenInput.style.display = "none";
+  fileCard.appendChild(hiddenInput);
+
+  // Универсальная функция обработки
+  const handleFile = async (file: File | string) => {
+    if (typeof file === "string") {
+      // Tauri путь
+      AppState.inputPath = file;
+      timeline.addLog(t("logs.file_loaded"), file, "info");
+    } else {
+      // Веб File объект
+      webSelectedFile = file;
+      AppState.inputPath = file.name;
+      timeline.addLog(t("logs.file_loaded"), `${file.name}`, "info");
+    }
+  };
+
+  if (isTauri) {
+    getCurrentWebviewWindow()
+      .onDragDropEvent((event) => {
+        if (event.payload.type === "enter" || event.payload.type === "over") {
+          fileCard.classList.add("drag-over");
+          return;
         }
-      } else {
-        const webInput = document.createElement("input");
-        webInput.type = "file";
-        webInput.accept = ".pdf";
-        webInput.onchange = (e) => {
-          const file = (e.target as HTMLInputElement).files?.[0];
-          if (file) {
-            webSelectedFile = file;
-            AppState.inputPath = file.name;
-            timeline.addLog(
-              t("logs.file_loaded"),
-              `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`,
-              "info",
-            );
-          }
-        };
-        webInput.click();
-      }
-    },
+
+        if (event.payload.type === "leave") {
+          fileCard.classList.remove("drag-over");
+          return;
+        }
+
+        if (event.payload.type !== "drop" || event.payload.paths.length === 0) {
+          return;
+        }
+
+        fileCard.classList.remove("drag-over");
+        handleFile(event.payload.paths[0]);
+      })
+      .catch((err) => {
+        console.error("Failed to register Tauri drag-and-drop listener", err);
+      });
+  }
+
+  // Логика Drag & Drop для fileCard
+  fileCard.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    e.stopPropagation(); // Важно для предотвращения всплытия
+    fileCard.classList.add("drag-over");
   });
-  fileCard.appendChild(browseBtn);
+
+  fileCard.addEventListener("dragleave", (e) => {
+    e.preventDefault();
+    fileCard.classList.remove("drag-over");
+  });
+
+  fileCard.addEventListener("drop", async (e) => {
+    console.log("Drop event triggered");
+    e.preventDefault();
+    e.stopPropagation();
+
+    fileCard.classList.remove("drag-over");
+
+    const path = e.dataTransfer?.getData("text/plain");
+    const uriList = e.dataTransfer?.getData("text/uri-list");
+    const file = e.dataTransfer?.files[0];
+
+    // Присваиваем значение только если что-то пришло
+    const rawPath = path || uriList;
+
+    if (isTauri && rawPath) {
+      // Теперь TypeScript знает, что rawPath точно есть, так как мы проверили его в условии
+      const cleanPath = rawPath
+        .replace(/^(file:\/\/|text\/uri-list:)/, "")
+        .trim();
+      handleFile(cleanPath);
+    } else if (file && file.type === "application/pdf") {
+      handleFile(file);
+    }
+  });
+
+  // Логика выбора файла (при клике)
+  fileCard.addEventListener("click", async () => {
+    if (isTauri) {
+      const selected = await open({
+        multiple: false,
+        filters: [{ name: "PDF", extensions: ["pdf"] }],
+      });
+      if (selected && typeof selected === "string") handleFile(selected);
+    } else {
+      hiddenInput.click();
+    }
+  });
+
+  hiddenInput.addEventListener("change", (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (file) handleFile(file);
+  });
 
   AppState.onChange("inputPath", (path) => {
     if (path) {
@@ -1002,77 +1097,88 @@ window.addEventListener("DOMContentLoaded", () => {
         );
 
         // Подставляем вычисленные бэкендом параметры в интерфейс с локализацией
-                if (mostFrequentPreset) {
-                  if (mostFrequentPreset.startsWith("custom:")) {
-                    const parts = mostFrequentPreset.split(":");
-                    const rawW = parseFloat(parts[1]);
-                    const rawH = parseFloat(parts[2]);
-        
-                    // Сокращаем до красивых целых пропорций
-                    const simple = getSimplestRatio(rawW, rawH);
-        
-                    // Локализованный лог для кастомных размеров
-                    const customMsg = formatString(
-                      t("logs.suggestion_custom", "Большинство страниц имеют формат {{w_raw}}x{{h_raw}} pt.\nАвтоматически установлены пропорции: {{w}} : {{h}}"),
-                      {
-                        w_raw: Math.round(rawW),
-                        h_raw: Math.round(rawH),
-                        w: simple.w,
-                        h: simple.h
-                      }
-                    );
-        
-                    timeline.addLog(
-                      t("logs.suggestion_title", "Рекомендация"),
-                      customMsg,
-                      "info",
-                    );
-        
-                    // Меняем значения инпутов
-                    isProgrammaticChange = true;
-                    updatePresetVisuals("custom");
-                    wEntry.value = String(simple.w);
-                    hEntry.value = String(simple.h);
-                    isProgrammaticChange = false;
-        
-                  } else {
-                    // Локализованный лог для стандартных пресетов
-                    const presetMsg = formatString(
-                      t("logs.suggestion_preset", "Большинство страниц соответствуют пресету \"{{preset}}\". Он выбран автоматически."),
-                      { preset: translateRatio(mostFrequentPreset) }
-                    );
-        
-                    timeline.addLog(
-                      t("logs.suggestion_title", "Рекомендация"),
-                      presetMsg,
-                      "info",
-                    );
-        
-                    // Блокируем зацикливание обработчиков ввода
-                    isProgrammaticChange = true;
-                    
-                    // Обновляем визуальный выбор в комбобоксе и реактивный стейт
-                    updatePresetVisuals(mostFrequentPreset);
-                    AppState.activePreset = mostFrequentPreset;
-        
-                    // Принудительно заполняем инпуты числами
-                    if (mostFrequentPreset === "a_series") {
-                      wEntry.value = "1"; hEntry.value = "1.414";
-                    } else if (mostFrequentPreset === "letter") {
-                      wEntry.value = "8.5"; hEntry.value = "11";
-                    } else if (mostFrequentPreset === "legal") {
-                      wEntry.value = "8.5"; hEntry.value = "14";
-                    } else if (mostFrequentPreset === "16_9") {
-                      wEntry.value = "16"; hEntry.value = "9";
-                    } else if (mostFrequentPreset === "4_3") {
-                      wEntry.value = "4"; hEntry.value = "3";
-                    } else if (mostFrequentPreset === "2_3") {
-                      wEntry.value = "2"; hEntry.value = "3";
-                    }
-        
-                    isProgrammaticChange = false;
-                  }
-                }
+        if (mostFrequentPreset) {
+          if (mostFrequentPreset.startsWith("custom:")) {
+            const parts = mostFrequentPreset.split(":");
+            const rawW = parseFloat(parts[1]);
+            const rawH = parseFloat(parts[2]);
+
+            // Сокращаем до красивых целых пропорций
+            const simple = getSimplestRatio(rawW, rawH);
+
+            // Локализованный лог для кастомных размеров
+            const customMsg = formatString(
+              t(
+                "logs.suggestion_custom",
+                "Большинство страниц имеют формат {{w_raw}}x{{h_raw}} pt.\nАвтоматически установлены пропорции: {{w}} : {{h}}",
+              ),
+              {
+                w_raw: Math.round(rawW),
+                h_raw: Math.round(rawH),
+                w: simple.w,
+                h: simple.h,
+              },
+            );
+
+            timeline.addLog(
+              t("logs.suggestion_title", "Рекомендация"),
+              customMsg,
+              "info",
+            );
+
+            // Меняем значения инпутов
+            isProgrammaticChange = true;
+            updatePresetVisuals("custom");
+            wEntry.value = String(simple.w);
+            hEntry.value = String(simple.h);
+            isProgrammaticChange = false;
+          } else {
+            // Локализованный лог для стандартных пресетов
+            const presetMsg = formatString(
+              t(
+                "logs.suggestion_preset",
+                'Большинство страниц соответствуют пресету "{{preset}}". Он выбран автоматически.',
+              ),
+              { preset: translateRatio(mostFrequentPreset) },
+            );
+
+            timeline.addLog(
+              t("logs.suggestion_title", "Рекомендация"),
+              presetMsg,
+              "info",
+            );
+
+            // Блокируем зацикливание обработчиков ввода
+            isProgrammaticChange = true;
+
+            // Обновляем визуальный выбор в комбобоксе и реактивный стейт
+            updatePresetVisuals(mostFrequentPreset);
+            AppState.activePreset = mostFrequentPreset;
+
+            // Принудительно заполняем инпуты числами
+            if (mostFrequentPreset === "a_series") {
+              wEntry.value = "1";
+              hEntry.value = "1.414";
+            } else if (mostFrequentPreset === "letter") {
+              wEntry.value = "8.5";
+              hEntry.value = "11";
+            } else if (mostFrequentPreset === "legal") {
+              wEntry.value = "8.5";
+              hEntry.value = "14";
+            } else if (mostFrequentPreset === "16_9") {
+              wEntry.value = "16";
+              hEntry.value = "9";
+            } else if (mostFrequentPreset === "4_3") {
+              wEntry.value = "4";
+              hEntry.value = "3";
+            } else if (mostFrequentPreset === "2_3") {
+              wEntry.value = "2";
+              hEntry.value = "3";
+            }
+
+            isProgrammaticChange = false;
+          }
+        }
       };
 
       if (isTauri) {

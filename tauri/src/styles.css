@@ -66,12 +66,11 @@ button {
   border: 1px solid transparent;
   padding: 0.6em 1.2em;
   font-size: 1em;
-  font-weight: 500;
+  font-weight: 400;
   font-family: inherit;
   color: #0f0f0f;
   background-color: #ffffff;
   transition: border-color 0.25s;
-  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
 }
 
 button {
@@ -113,4 +112,31 @@ button {
   button:active {
     background-color: #0f0f0f69;
   }
+}
+
+.drop-zone,
+.win-card.drop-zone {
+  width: 100%;
+  height: 75px;
+  border: 2px dashed var(--drop-zone-border, #8a8a8a);
+  background: var(--drop-zone-bg, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  cursor: pointer;
+  border-radius: 8px;
+  padding: 20px 24px;
+  box-shadow: var(--drop-zone-shadow, none);
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.drop-zone.drag-over,
+.win-card.drop-zone.drag-over {
+  border-color: var(--drop-zone-active-border, var(--winui-accent, #0078d4));
+  background: var(--drop-zone-active-bg, rgba(0, 120, 212, 0.06));
+  box-shadow: 0 0 0 3px var(--drop-zone-active-ring, rgba(0, 120, 212, 0.12));
 }

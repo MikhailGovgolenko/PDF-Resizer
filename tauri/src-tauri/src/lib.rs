@@ -94,11 +94,16 @@ fn parse_dimensions(array: &[Object]) -> Option<(f32, f32)> {
 // 1. PDF ANALYSIS COMMAND
 #[tauri::command]
 fn analyze_pdf(input_path: String) -> Result<PdfAnalysis, String> {
+    println!("analyze_pdf called: {}", input_path);
     if input_path.is_empty() {
         return Err(AppError::EmptyPath.into());
     }
 
-    let doc = Document::load(&input_path).map_err(|_| String::from(AppError::PdfLoadFailed))?;
+    let doc = Document::load(&input_path)
+        .map_err(|e| {
+            eprintln!("PDF load error: {:?}", e);
+            String::from(AppError::PdfLoadFailed)
+        })?;
 
     let mut ratios_count: HashMap<String, u32> = HashMap::new();
     let pages = doc.get_pages();
@@ -508,7 +513,9 @@ fn windows_light_dark_mode_is_dark() -> Result<bool, String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    println!("RUN");
     tauri::Builder::default()
+        .plugin(tauri_plugin_drag::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {

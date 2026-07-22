@@ -1,7 +1,7 @@
 {
   "ui": {
     "target_document": "Selected Document",
-    "no_file_selected": "No File Selected",
+    "no_file_selected": "Drop files here or click to browse",
     "browse": "Browse",
     "preset_label": "Templates",
     "width_label": "Width Ratio",

@@ -1,7 +1,7 @@
 {
   "ui": {
     "target_document": "Выбранный документ",
-    "no_file_selected": "Файл не выбран",
+    "no_file_selected": "Перетащите PDF-файлы сюда или нажмите для выбора",
     "browse": "Обзор",
     "preset_label": "Шаблоны",
     "width_label": "Ширина",
