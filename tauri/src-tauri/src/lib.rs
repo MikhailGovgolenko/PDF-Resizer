@@ -63,13 +63,16 @@ fn get_ratio_class(w: f32, h: f32) -> String {
     if (r - 1.7777).abs() < epsilon {
         return "16_9".to_string();
     }
-    if (r - 1.2941).abs() < epsilon { // US Letter (11 / 8.5)
+    if (r - 1.2941).abs() < epsilon {
+        // US Letter (11 / 8.5)
         return "letter".to_string();
     }
-    if (r - 1.6470).abs() < epsilon { // US Legal (14 / 8.5)
+    if (r - 1.6470).abs() < epsilon {
+        // US Legal (14 / 8.5)
         return "legal".to_string();
     }
-    if (r - 1.5000).abs() < epsilon { // 2:3 пропорция
+    if (r - 1.5000).abs() < epsilon {
+        // 2:3 пропорция
         return "2_3".to_string();
     }
 
@@ -99,11 +102,10 @@ fn analyze_pdf(input_path: String) -> Result<PdfAnalysis, String> {
         return Err(AppError::EmptyPath.into());
     }
 
-    let doc = Document::load(&input_path)
-        .map_err(|e| {
-            eprintln!("PDF load error: {:?}", e);
-            String::from(AppError::PdfLoadFailed)
-        })?;
+    let doc = Document::load(&input_path).map_err(|e| {
+        eprintln!("PDF load error: {:?}", e);
+        String::from(AppError::PdfLoadFailed)
+    })?;
 
     let mut ratios_count: HashMap<String, u32> = HashMap::new();
     let pages = doc.get_pages();
@@ -153,8 +155,13 @@ fn resize_pdf(
 
     let mut doc = Document::load(&input_path).map_err(|_| String::from(AppError::PdfLoadFailed))?;
 
-    let target_w = 595.0f32;
-    let target_h = target_w * (h_ratio as f32) / (w_ratio as f32);
+    let base = 595.0f32;
+
+    let (target_w, target_h) = if w_ratio >= h_ratio {
+        (base * (w_ratio as f32) / (h_ratio as f32), base)
+    } else {
+        (base, base * (h_ratio as f32) / (w_ratio as f32))
+    };
 
     let page_ids: Vec<lopdf::ObjectId> = doc.get_pages().values().cloned().collect();
 
@@ -170,8 +177,12 @@ fn resize_pdf(
             let mut orig_left = 0.0f32;
             let mut orig_bottom = 0.0f32;
 
-            if let Ok(media_box_obj) = page_dict.get(b"MediaBox") {
-                if let Ok(arr) = media_box_obj.as_array() {
+            let box_obj = page_dict
+                .get(b"CropBox")
+                .or_else(|_| page_dict.get(b"MediaBox"));
+
+            if let Ok(box_obj) = box_obj {
+                if let Ok(arr) = box_obj.as_array() {
                     if arr.len() >= 4 {
                         let left = arr[0].as_float().unwrap_or(0.0);
                         let bottom = arr[1].as_float().unwrap_or(0.0);
@@ -296,15 +307,9 @@ fn resize_pdf(
         page_dict_mut.set(b"MediaBox", new_media_box.clone());
         page_dict_mut.set(b"CropBox", new_media_box.clone());
 
-        if page_dict_mut.has(b"BleedBox") {
-            page_dict_mut.set(b"BleedBox", new_media_box.clone());
-        }
-        if page_dict_mut.has(b"TrimBox") {
-            page_dict_mut.set(b"TrimBox", new_media_box.clone());
-        }
-        if page_dict_mut.has(b"ArtBox") {
-            page_dict_mut.set(b"ArtBox", new_media_box.clone());
-        }
+        page_dict_mut.remove(b"BleedBox");
+        page_dict_mut.remove(b"TrimBox");
+        page_dict_mut.remove(b"ArtBox");
 
         page_dict_mut.set(b"Rotate", Object::Integer(0));
 
@@ -486,7 +491,7 @@ fn set_windows_taskbar_icon(
 ) -> Result<(), String> {
     use windows::Win32::UI::HiDpi::{GetDpiForWindow, GetSystemMetricsForDpi};
     use windows::Win32::UI::WindowsAndMessaging::{
-        DestroyIcon, GetAncestor, GA_ROOT, SM_CXSMICON, SetWindowPos, SWP_FRAMECHANGED,
+        DestroyIcon, GetAncestor, SetWindowPos, GA_ROOT, SM_CXSMICON, SWP_FRAMECHANGED,
         SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
     };
 
@@ -506,9 +511,7 @@ fn set_windows_taskbar_icon(
     let big_size = 256u32.min(src);
     // ICON_SMALL / title-bar: DPI metric, but never below 32 physical px on HiDPI.
     let small_metric = unsafe { GetSystemMetricsForDpi(SM_CXSMICON, dpi) }.max(16) as u32;
-    let small_size = small_metric
-        .max((32u32 * dpi) / 96)
-        .min(big_size);
+    let small_size = small_metric.max((32u32 * dpi) / 96).min(big_size);
 
     let big_rgba = resize_rgba(rgba, width, height, big_size)?;
     let small_rgba = resize_rgba(rgba, width, height, small_size)?;
@@ -539,7 +542,9 @@ fn set_windows_taskbar_icon(
     {
         unsafe {
             let _ = DestroyIcon(windows::Win32::UI::WindowsAndMessaging::HICON(old_big as _));
-            let _ = DestroyIcon(windows::Win32::UI::WindowsAndMessaging::HICON(old_small as _));
+            let _ = DestroyIcon(windows::Win32::UI::WindowsAndMessaging::HICON(
+                old_small as _,
+            ));
         }
     }
 
@@ -606,9 +611,9 @@ fn windows_light_dark_mode_is_dark() -> Result<bool, String> {
     use winreg::RegKey;
 
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    let personalize_key =
-        hkcu.open_subkey("Software\\Microsoft\\Windows\\CurrentVersion\\Personalize")
-            .map_err(|e| format!("Failed to open Personalize key: {}", e))?;
+    let personalize_key = hkcu
+        .open_subkey("Software\\Microsoft\\Windows\\CurrentVersion\\Personalize")
+        .map_err(|e| format!("Failed to open Personalize key: {}", e))?;
 
     // Taskbar follows SystemUsesLightTheme; title bar / app chrome follow AppsUseLightTheme.
     // Prefer System so the taskbar glyph stays readable; fall back to Apps.
@@ -635,7 +640,6 @@ fn windows_theme_is_dark() -> Result<bool, String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    println!("RUN");
     tauri::Builder::default()
         .plugin(tauri_plugin_drag::init())
         .plugin(tauri_plugin_dialog::init())
@@ -651,11 +655,11 @@ pub fn run() {
                     let window_clone = window.clone();
                     let _ = window.run_on_main_thread(move || {
                         let _ = apply_mica(&window_clone, None);
-                        
+
                         // Инициализируем иконку при запуске
                         let is_dark = windows_light_dark_mode_is_dark().unwrap_or(false);
                         let _ = set_theme_icon(window_clone.clone(), is_dark);
-                        
+
                         let _ = window_clone.show();
                     });
                 }

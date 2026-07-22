@@ -34,8 +34,7 @@ jobs:
 
       - uses: actions/upload-pages-artifact@v4
         with:
-          path: 
-            tauri/dist
+          path: tauri/dist
 
   deploy:
     needs: build

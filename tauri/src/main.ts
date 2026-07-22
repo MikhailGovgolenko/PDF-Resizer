@@ -18,20 +18,6 @@ interface PdfResizeResult {
   target_h: number;
 }
 
-async function testPdf() {
-  try {
-    const result = await invoke("analyze_pdf", {
-      inputPath: "C:\\Users\\govgo\\Desktop\\test.pdf",
-    });
-
-    console.log(result);
-  } catch (error) {
-    console.error(error);
-  }
-}
-
-testPdf();
-
 // ==========================================
 // 0. МЕНЕДЖЕР АВТОЛОКАЛИЗАЦИИ СИСТЕМЫ
 // ==========================================
@@ -273,8 +259,6 @@ function WinLogTimeline() {
 // 3. MAIN APPLICATION INITIALIZATION
 // ==========================================
 window.addEventListener("DOMContentLoaded", () => {
-  console.log("Window initialized");
-
   window.addEventListener(
     "dragover",
     (e) => {
@@ -545,7 +529,6 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   fileCard.addEventListener("drop", async (e) => {
-    console.log("Drop event triggered");
     e.preventDefault();
     e.stopPropagation();
 

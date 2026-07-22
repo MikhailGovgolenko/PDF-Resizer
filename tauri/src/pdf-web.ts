@@ -1,9 +1,4 @@
-import {
-  PDFDocument,
-  degrees,
-  PDFName,
-  PDFArray,
-} from "pdf-lib";
+import { PDFDocument, degrees, PDFName, PDFArray } from "pdf-lib";
 
 export interface PdfAnalysis {
   file_name: string;
@@ -95,23 +90,38 @@ export async function resizePdfWeb(
 
   const pdfDoc = await loadPdfDocument(file);
   const pages = pdfDoc.getPages();
-  const targetW = 595.0;
-  const targetH = targetW * (hRatio / wRatio);
+  const base = 595.0;
+
+  let targetW: number;
+  let targetH: number;
+
+  if (wRatio >= hRatio) {
+    targetW = base * (wRatio / hRatio);
+    targetH = base;
+  } else {
+    targetW = base;
+    targetH = base * (hRatio / wRatio);
+  }
 
   for (const page of pages) {
-    const mediaBox = page.getMediaBox();
-    const currentWidth = mediaBox.width;
-    const currentHeight = mediaBox.height;
-    
-    // ВАЖНО: Получаем начальные координаты для корректного смещения (аналог orig_left / orig_bottom)
-    const origLeft = mediaBox.x;
-    const origBottom = mediaBox.y;
+    const cropBox = page.getCropBox();
+
+    const currentWidth = cropBox.width;
+    const currentHeight = cropBox.height;
+
+    const origLeft = cropBox.x;
+    const origBottom = cropBox.y;
 
     const rotation = page.getRotation().angle;
 
     // Математика трансформации, дословно переведенная из Rust
     let scale = 1;
-    let a = 1, b = 0, c = 0, d = 1, e = 0, f = 0;
+    let a = 1,
+      b = 0,
+      c = 0,
+      d = 1,
+      e = 0,
+      f = 0;
 
     switch (rotation) {
       case 90: {
@@ -121,9 +131,12 @@ export async function resizePdfWeb(
         const offsetX = (targetW - newContentW) / 2;
         const offsetY = (targetH - newContentH) / 2;
 
-        a = 0; b = -scale; c = scale; d = 0;
-        e = offsetX - (origBottom * scale);
-        f = offsetY + (currentWidth * scale) + (origLeft * scale);
+        a = 0;
+        b = -scale;
+        c = scale;
+        d = 0;
+        e = offsetX - origBottom * scale;
+        f = offsetY + currentWidth * scale + origLeft * scale;
         break;
       }
       case 180: {
@@ -133,9 +146,12 @@ export async function resizePdfWeb(
         const offsetX = (targetW - newContentW) / 2;
         const offsetY = (targetH - newContentH) / 2;
 
-        a = -scale; b = 0; c = 0; d = -scale;
-        e = offsetX + (currentWidth * scale) + (origLeft * scale);
-        f = offsetY + (currentHeight * scale) + (origBottom * scale);
+        a = -scale;
+        b = 0;
+        c = 0;
+        d = -scale;
+        e = offsetX + currentWidth * scale + origLeft * scale;
+        f = offsetY + currentHeight * scale + origBottom * scale;
         break;
       }
       case 270: {
@@ -145,9 +161,12 @@ export async function resizePdfWeb(
         const offsetX = (targetW - newContentW) / 2;
         const offsetY = (targetH - newContentH) / 2;
 
-        a = 0; b = scale; c = -scale; d = 0;
-        e = offsetX + (currentHeight * scale) + (origBottom * scale);
-        f = offsetY - (origLeft * scale);
+        a = 0;
+        b = scale;
+        c = -scale;
+        d = 0;
+        e = offsetX + currentHeight * scale + origBottom * scale;
+        f = offsetY - origLeft * scale;
         break;
       }
       default: {
@@ -157,16 +176,19 @@ export async function resizePdfWeb(
         const offsetX = (targetW - newContentW) / 2;
         const offsetY = (targetH - newContentH) / 2;
 
-        a = scale; b = 0; c = 0; d = scale;
-        e = offsetX - (origLeft * scale);
-        f = offsetY - (origBottom * scale);
+        a = scale;
+        b = 0;
+        c = 0;
+        d = scale;
+        e = offsetX - origLeft * scale;
+        f = offsetY - origBottom * scale;
         break;
       }
     }
 
     // 1. Создаем поток q + cm (Prepend)
     const prependStream = pdfDoc.context.flateStream(
-      `q\n${a.toFixed(4)} ${b.toFixed(4)} ${c.toFixed(4)} ${d.toFixed(4)} ${e.toFixed(4)} ${f.toFixed(4)} cm\n`
+      `q\n${a.toFixed(4)} ${b.toFixed(4)} ${c.toFixed(4)} ${d.toFixed(4)} ${e.toFixed(4)} ${f.toFixed(4)} cm\n`,
     );
     const prependRef = pdfDoc.context.register(prependStream);
 
@@ -187,13 +209,18 @@ export async function resizePdfWeb(
     }
 
     newContentsArray.push(appendRef);
-    
+
     // Перезаписываем Contents
     page.node.set(PDFName.of("Contents"), newContentsArray);
 
     // Установка параметров страницы
     page.setMediaBox(0, 0, targetW, targetH);
     page.setCropBox(0, 0, targetW, targetH);
+
+    page.node.delete(PDFName.of("TrimBox"));
+    page.node.delete(PDFName.of("BleedBox"));
+    page.node.delete(PDFName.of("ArtBox"));
+
     page.setRotation(degrees(0));
   }
 
