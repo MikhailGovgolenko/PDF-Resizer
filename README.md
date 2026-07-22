@@ -1,7 +1,7 @@
 
-<h1 align="center">PDF Converter</h1>
+<h1 align="center">PDF Resizer</h1>
 
-<p align="center"> https://mikhailgovgolenko.github.io/PDF-Converter/</p>
+<p align="center"> https://mikhailgovgolenko.github.io/PDF-Resizer/</p>
 
 A portable utility to analyze page aspect ratios and resize PDF documents without quality loss.
 
@@ -12,7 +12,7 @@ A portable utility to analyze page aspect ratios and resize PDF documents withou
 
 ### How to use:
 
-1. **Run** PDF Converter.
+1. **Run** PDF Resizer.
 2. Click **Browse** and select your document.
 3. Click **Analyze** to view the current page proportions in the log window.
 4. Select your target proportions using predefined presets (A-series, 2x3, 3x4) or custom aspect ratio parameter.
