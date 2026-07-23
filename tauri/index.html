@@ -1,26 +1,44 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-title" content="PDF Resizer" />
-    <title>PDF Resizer</title>
-    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
-    <link rel="icon" type="image/png" href="favicon-light.png" />
-    <link rel="icon" type="image/png" href="favicon-light.png" media="(prefers-color-scheme: light)" />
-    <link rel="icon" type="image/png" href="favicon-dark.png" media="(prefers-color-scheme: dark)" />
-    <script type="module" src="/src/main.ts"></script>
-  </head>
-  <body>
-    <div id="app">
-      <div id="drop-zone" class="drop-zone">
-        <input type="file" id="file-input" accept="application/pdf" style="display: none;" />
-        <div class="drop-zone-content">
-          <p>Перетащите PDF сюда</p>
-          <button id="browse-btn">Выбрать файл</button>
-        </div>
-      </div>
-    </div>
-  </body>
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+  />
+
+  <title>PDF Resizer</title>
+
+  <meta
+    name="description"
+    content="Analyze page aspect ratios and resize PDF documents without quality loss."
+  />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="PDF Resizer" />
+  <meta
+    property="og:description"
+    content="Tool for resizing PDF files."
+  />
+  <meta
+    property="og:image"
+    content="https://mikhailgovgolenko.github.io/PDF-Resizer/icon.png"
+  />
+  <meta
+    property="og:url"
+    content="https://mikhailgovgolenko.github.io/PDF-Resizer/"
+  />
+  <meta property="og:type" content="website" />
+
+  <!-- Icons -->
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
+  <link rel="icon" href="favicon-light.png" />
+  <link rel="icon" href="favicon-light.png" media="(prefers-color-scheme: light)" />
+  <link rel="icon" href="favicon-dark.png" media="(prefers-color-scheme: dark)" />
+
+  <script type="module" src="/src/main.ts"></script>
+</head>
+<body>
+  <div id="app"></div>
+</body>
 </html>
