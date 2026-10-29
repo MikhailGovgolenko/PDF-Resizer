@@ -606,8 +606,11 @@ window.addEventListener("DOMContentLoaded", () => {
         <div class="win-combobox-item selected" data-value="a_series">${t("presets.a_series")}</div>
         <div class="win-combobox-item" data-value="letter">${t("presets.letter")}</div>
         <div class="win-combobox-item" data-value="legal">${t("presets.legal")}</div>
-        <div class="win-combobox-item" data-value="16_9">${t("presets.sixteen_nine")}</div>
-        <div class="win-combobox-item" data-value="4_3">${t("presets.four_three")}</div>
+        <div class="win-combobox-item" data-value="9_16">${t("presets.nine_sixteen")}</div>
+        <div class="win-combobox-item" data-value="4_5">${t("presets.four_five")}</div>
+        <div class="win-combobox-item" data-value="5_7">${t("presets.five_seven")}</div>
+        <div class="win-combobox-item" data-value="3_4">${t("presets.three_four")}</div>
+        <div class="win-combobox-item" data-value="3_5">${t("presets.three_five")}</div>
         <div class="win-combobox-item" data-value="2_3">${t("presets.two_three")}</div>
         <div class="win-combobox-item" data-value="custom">${t("presets.custom")}</div>
       `;
@@ -683,8 +686,11 @@ window.addEventListener("DOMContentLoaded", () => {
       { name: "a_series", ratio: 1 / 1.414 },
       { name: "letter", ratio: 8.5 / 11 },
       { name: "legal", ratio: 8.5 / 14 },
-      { name: "16_9", ratio: 16 / 9 },
-      { name: "4_3", ratio: 4 / 3 },
+      { name: "9_16", ratio: 9 / 16 },
+      { name: "4_5", ratio: 4 / 5 },
+      { name: "5_7", ratio: 5 / 7 },
+      { name: "3_4", ratio: 3 / 4 },
+      { name: "3_5", ratio: 3 / 5 },
       { name: "2_3", ratio: 2 / 3 },
     ];
 
@@ -743,14 +749,21 @@ window.addEventListener("DOMContentLoaded", () => {
       } else if (value === "legal") {
         wEntry.value = "8.5";
         hEntry.value = "14";
-      } else if (value === "16_9") {
-        // Было sixteen_nine
-        wEntry.value = "16";
-        hEntry.value = "9";
-      } else if (value === "4_3") {
-        // Было four_three
+      } else if (value === "9_16") {
+        wEntry.value = "9";
+        hEntry.value = "16";
+      } else if (value === "4_5") {
         wEntry.value = "4";
-        hEntry.value = "3";
+        hEntry.value = "5";
+      } else if (value === "5_7") {
+        wEntry.value = "5";
+        hEntry.value = "7";
+      } else if (value === "3_4") {
+        wEntry.value = "3";
+        hEntry.value = "4";
+      } else if (value === "3_5") {
+        wEntry.value = "3";
+        hEntry.value = "5";
       } else if (value === "2_3") {
         // Было two_three
         wEntry.value = "2";
@@ -782,14 +795,21 @@ window.addEventListener("DOMContentLoaded", () => {
     } else if (preset === "legal") {
       wEntry.value = "8.5";
       hEntry.value = "14";
-    } else if (preset === "16_9") {
-      // Было sixteen_nine
-      wEntry.value = "16";
-      hEntry.value = "9";
-    } else if (preset === "4_3") {
-      // Было four_three
+    } else if (preset === "9_16") {
+      wEntry.value = "9";
+      hEntry.value = "16";
+    } else if (preset === "4_5") {
       wEntry.value = "4";
-      hEntry.value = "3";
+      hEntry.value = "5";
+    } else if (preset === "5_7") {
+      wEntry.value = "5";
+      hEntry.value = "7";
+    } else if (preset === "3_4") {
+      wEntry.value = "3";
+      hEntry.value = "4";
+    } else if (preset === "3_5") {
+      wEntry.value = "3";
+      hEntry.value = "5";
     } else if (preset === "2_3") {
       // Было two_three
       wEntry.value = "2";
@@ -910,12 +930,21 @@ window.addEventListener("DOMContentLoaded", () => {
             } else if (mostFrequentPreset === "legal") {
               wEntry.value = "8.5";
               hEntry.value = "14";
-            } else if (mostFrequentPreset === "16_9") {
-              wEntry.value = "16";
-              hEntry.value = "9";
-            } else if (mostFrequentPreset === "4_3") {
+            } else if (mostFrequentPreset === "9_16") {
+              wEntry.value = "9";
+              hEntry.value = "16";
+            } else if (mostFrequentPreset === "4_5") {
               wEntry.value = "4";
-              hEntry.value = "3";
+              hEntry.value = "5";
+            } else if (mostFrequentPreset === "5_7") {
+              wEntry.value = "5";
+              hEntry.value = "7";
+            } else if (mostFrequentPreset === "3_4") {
+              wEntry.value = "3";
+              hEntry.value = "4";
+            } else if (mostFrequentPreset === "3_5") {
+              wEntry.value = "3";
+              hEntry.value = "5";
             } else if (mostFrequentPreset === "2_3") {
               wEntry.value = "2";
               hEntry.value = "3";

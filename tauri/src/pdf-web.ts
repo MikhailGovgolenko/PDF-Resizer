@@ -28,12 +28,32 @@ function getRatioClass(w: number, h: number): string {
   // 2. Используем ту же точность, что и в Rust (0.02)
   const epsilon = 0.02;
 
-  if (Math.abs(r - 1.4142) < epsilon) return "a_series";
-  if (Math.abs(r - 1.3333) < epsilon) return "4_3";
-  if (Math.abs(r - 1.7777) < epsilon) return "16_9";
-  if (Math.abs(r - 1.2941) < epsilon) return "letter";
-  if (Math.abs(r - 1.647) < epsilon) return "legal";
-  if (Math.abs(r - 1.5) < epsilon) return "2_3";
+  // 3. Выбираем ближайшую пропорцию: 5:7 (1.4) и A-серия (1.4142)
+  //    находятся слишком близко друг к другу, поэтому простой перебор
+  //    по порядку отнёс бы страницы 5x7 к A-серии и наоборот.
+  const presets = [
+    { name: "a_series", ratio: 1.4142 },
+    { name: "letter", ratio: 1.2941 },
+    { name: "legal", ratio: 1.647 },
+    { name: "9_16", ratio: 1.7777 },
+    { name: "4_5", ratio: 1.25 },
+    { name: "5_7", ratio: 1.4 },
+    { name: "3_4", ratio: 1.3333 },
+    { name: "3_5", ratio: 1.6667 },
+    { name: "2_3", ratio: 1.5 },
+  ];
+
+  let best: { name: string; diff: number } | null = null;
+  for (const preset of presets) {
+    const diff = Math.abs(r - preset.ratio);
+    if (diff < epsilon && (!best || diff < best.diff)) {
+      best = { name: preset.name, diff };
+    }
+  }
+
+  if (best) {
+    return best.name;
+  }
 
   return `custom:${w.toFixed(2)}:${h.toFixed(2)}`;
 }

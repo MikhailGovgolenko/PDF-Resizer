@@ -54,26 +54,30 @@ fn get_ratio_class(w: f32, h: f32) -> String {
 
     let epsilon = 0.02; // Комфортная погрешность для полиграфии
 
-    if (r - 1.4142).abs() < epsilon {
-        return "a_series".to_string();
+    // 5:7 (1.4) и A-серия (1.4142) слишком близки, поэтому выбираем
+    // ближайшую пропорцию, а не первую подходящую по порядку.
+    let presets: [(&str, f32); 9] = [
+        ("a_series", 1.4142),
+        ("letter", 1.2941), // US Letter (11 / 8.5)
+        ("legal", 1.6470),  // US Legal (14 / 8.5)
+        ("9_16", 1.7777),   // 9:16 пропорция
+        ("4_5", 1.2500),    // 4:5 пропорция
+        ("5_7", 1.4000),    // 5:7 пропорция
+        ("3_4", 1.3333),    // 3:4 пропорция
+        ("3_5", 1.6667),    // 3:5 пропорция
+        ("2_3", 1.5000),    // 2:3 пропорция
+    ];
+
+    let mut best: Option<(&str, f32)> = None;
+    for (name, ratio) in presets {
+        let diff = (r - ratio).abs();
+        if diff < epsilon && best.map_or(true, |(_, best_diff)| diff < best_diff) {
+            best = Some((name, diff));
+        }
     }
-    if (r - 1.3333).abs() < epsilon {
-        return "4_3".to_string();
-    }
-    if (r - 1.7777).abs() < epsilon {
-        return "16_9".to_string();
-    }
-    if (r - 1.2941).abs() < epsilon {
-        // US Letter (11 / 8.5)
-        return "letter".to_string();
-    }
-    if (r - 1.6470).abs() < epsilon {
-        // US Legal (14 / 8.5)
-        return "legal".to_string();
-    }
-    if (r - 1.5000).abs() < epsilon {
-        // 2:3 пропорция
-        return "2_3".to_string();
+
+    if let Some((name, _)) = best {
+        return name.to_string();
     }
 
     // Для действительно кастомных размеров возвращаем точные исходные пропорции
